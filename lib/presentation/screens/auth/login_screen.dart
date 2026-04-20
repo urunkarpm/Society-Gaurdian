@@ -21,12 +21,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
   
   bool _isLoading = false;
-  bool _isOtpSent = false;
-  String? _verificationId;
 
   @override
   void initState() {
@@ -39,9 +35,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _tabController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _phoneController.dispose();
-    _otpController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loginWithGoogle() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final authService = ref.read(authServiceProviders);
+      await authService.signInWithGoogle();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Login successful!')),
+        );
+        // Router will handle navigation based on user role
+      }
+    } catch (e) {
+      Logger.error('Google login failed', error: e, tag: 'LoginScreen');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login failed: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _loginWithPassword() async {
@@ -67,84 +88,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Login failed: ${e.toString()}')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _sendOtp() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final authService = ref.read(authServiceProviders);
-      await authService.signInWithPhone(
-        phoneNumber: _phoneController.text.trim(),
-        onCodeSent: (verificationId) {
-          setState(() {
-            _verificationId = verificationId;
-            _isOtpSent = true;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('OTP sent successfully!')),
-          );
-        },
-        onError: (error) {
-          Logger.error('OTP send failed', error: error, tag: 'LoginScreen');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to send OTP: ${error.message}')),
-            );
-          }
-        },
-      );
-    } catch (e) {
-      Logger.error('OTP send failed', error: e, tag: 'LoginScreen');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send OTP: ${e.toString()}')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _verifyOtp() async {
-    if (_otpController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter OTP')),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final authService = ref.read(authServiceProviders);
-      await authService.verifyOtpAndSignIn(
-        verificationId: _verificationId!,
-        smsCode: _otpController.text.trim(),
-      );
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login successful!')),
-        );
-        // Router will handle navigation
-      }
-    } catch (e) {
-      Logger.error('OTP verification failed', error: e, tag: 'LoginScreen');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('OTP verification failed: ${e.toString()}')),
         );
       }
     } finally {
@@ -229,6 +172,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               
               const SizedBox(height: 24),
               
+              // Google Sign In Button (for residents)
+              OutlinedButton.icon(
+                onPressed: _isLoading ? null : _loginWithGoogle,
+                icon: const Icon(Icons.login),
+                label: const Text('Sign in with Google'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
               // Footer
               Text(
                 'By continuing, you agree to our Terms of Service and Privacy Policy',
@@ -296,74 +253,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Widget _buildResidentLoginTab() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!_isOtpSent) ...[
-            TextFormField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Mobile Number',
-                prefixIcon: Icon(Icons.phone_outlined),
-                hintText: '+91 XXXXX XXXXX',
-              ),
-              validator: ValidationBuilder()
-                  .minLength(10)
-                  .maxLength(15)
-                  .build(),
-            ),
-            const SizedBox(height: 24),
-            
-            ElevatedButton(
-              onPressed: _isLoading ? null : _sendOtp,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Send OTP'),
-            ),
-          ] else ...[
-            TextFormField(
-              controller: _otpController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Enter OTP',
-                prefixIcon: Icon(Icons.pin_outlined),
-              ),
-              validator: ValidationBuilder().minLength(4).maxLength(6).build(),
-            ),
-            const SizedBox(height: 24),
-            
-            ElevatedButton(
-              onPressed: _isLoading ? null : _verifyOtp,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Verify & Sign In'),
-            ),
-            const SizedBox(height: 16),
-            
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _isOtpSent = false;
-                  _verificationId = null;
-                  _otpController.clear();
-                });
-              },
-              child: const Text('Change Number'),
-            ),
-          ],
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.person_outline,
+          size: 64,
+          color: AppTheme.primaryColor,
+        ),
+        const SizedBox(height: 24),
+        Text(
+          'Residents can sign in using Google',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: AppTheme.textSecondary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Click the "Sign in with Google" button below to continue',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppTheme.textHint,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }

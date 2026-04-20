@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../domain/entities/user_entity.dart';
 import '../../core/constants/app_constants.dart';
@@ -97,9 +98,46 @@ final authServiceProviders = Provider<AuthService>((ref) {
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+  );
 
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  /// Sign in with Google (for residents and all users)
+  Future<UserCredential> signInWithGoogle() async {
+    try {
+      Logger.log('Signing in with Google', tag: 'AuthService');
+      
+      // Trigger the Google sign-in flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        throw Exception('Google sign-in was cancelled');
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // Create a new credential
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the Google credentials
+      final userCredential = await _auth.signInWithCredential(credential);
+      
+      // Update last login time
+      await _updateLastLogin(userCredential.user!.uid);
+      
+      Logger.auth('Google sign in successful', userId: userCredential.user!.uid);
+      return userCredential;
+    } catch (e, stackTrace) {
+      Logger.error('Google sign in failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
+      rethrow;
+    }
+  }
 
   /// Sign in with email and password (for security personnel)
   Future<UserCredential> signInWithEmailAndPassword({
@@ -120,56 +158,6 @@ class AuthService {
       return credential;
     } catch (e, stackTrace) {
       Logger.error('Sign in failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
-      rethrow;
-    }
-  }
-
-  /// Sign in with phone number (for residents)
-  Future<void> signInWithPhone({
-    required String phoneNumber,
-    required Function(String verificationId) onCodeSent,
-    required Function(FirebaseAuthException error) onError,
-  }) async {
-    try {
-      Logger.log('Sending OTP to $phoneNumber', tag: 'AuthService');
-      await _auth.verifyPhoneNumber(
-        phoneNumber: phoneNumber,
-        timeout: const Duration(seconds: 60),
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          Logger.log('Auto verification completed', tag: 'AuthService');
-          await _auth.signInWithCredential(credential);
-        },
-        verificationFailed: onError,
-        codeSent: (String verificationId, int? resendToken) {
-          onCodeSent(verificationId);
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {},
-      );
-    } catch (e, stackTrace) {
-      Logger.error('Phone sign in failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
-      rethrow;
-    }
-  }
-
-  /// Verify OTP and sign in
-  Future<UserCredential> verifyOtpAndSignIn({
-    required String verificationId,
-    required String smsCode,
-  }) async {
-    try {
-      Logger.log('Verifying OTP', tag: 'AuthService');
-      final credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
-      );
-      
-      final userCredential = await _auth.signInWithCredential(credential);
-      await _updateLastLogin(userCredential.user!.uid);
-      
-      Logger.auth('OTP verification successful', userId: userCredential.user!.uid);
-      return userCredential;
-    } catch (e, stackTrace) {
-      Logger.error('OTP verification failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
       rethrow;
     }
   }
