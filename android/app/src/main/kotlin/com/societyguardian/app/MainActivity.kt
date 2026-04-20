@@ -1,4 +1,4 @@
-package com.example.society_guardian
+package com.societyguardian.app
 
 import io.flutter.embedding.android.FlutterActivity
 
