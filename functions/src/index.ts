@@ -1,11 +1,6 @@
 /**
- * Society Guardian Cloud Functions
- * 
- * Key Functions:
- * - onVisitorCreate: Triggered when a new visitor is tagged by security
- * - onVisitorExpire: Scheduled function to auto-expire pending visitors
- * - sendScheduledNotifications: Daily reminders for pending approvals
- * - processPaymentWebhook: Handle Stripe/Razorpay payment webhooks
+ * Cloud Functions for Society Guardian
+ * Firebase Gen 2 Functions with TypeScript
  */
 
 import * as functions from 'firebase-functions';
@@ -16,17 +11,20 @@ admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();
 
+// ==================== VISITOR FUNCTIONS ====================
+
 /**
- * Trigger FCM notification when a new visitor is created
+ * Triggered when a new visitor is created
+ * Sends FCM notification to resident and creates notification document
  */
 export const onVisitorCreate = functions.firestore
   .document('societies/{societyId}/visitors/{visitorId}')
-  .onCreate(async (snapshot, context) => {
-    const visitorData = snapshot.data();
+  .onCreate(async (snap, context) => {
+    const visitorData = snap.data();
     const { societyId, visitorId } = context.params;
     
     try {
-      // Get flat members to notify
+      // Get host flat information
       const flatDoc = await db
         .collection('societies')
         .doc(societyId)
@@ -35,224 +33,230 @@ export const onVisitorCreate = functions.firestore
         .get();
       
       if (!flatDoc.exists) {
-        console.log(`Flat ${visitorData.hostFlatId} not found`);
-        return null;
+        console.error('Host flat not found:', visitorData.hostFlatId);
+        return;
       }
       
       const flatData = flatDoc.data()!;
-      const memberUids = flatData.memberUids || [];
+      const residentUids = flatData.residentUids || [];
       
-      if (memberUids.length === 0) {
-        console.log('No members in flat');
-        return null;
+      if (residentUids.length === 0) {
+        console.log('No residents found for flat');
+        return;
       }
       
-      // Get FCM tokens for all members
-      const tokens: string[] = [];
-      for (const uid of memberUids) {
-        const userDoc = await db.collection('users').doc(uid).get();
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          const userTokens = userData?.fcmTokens || [];
-          tokens.push(...userTokens);
+      // Get resident FCM tokens
+      const residentDocs = await Promise.all(
+        residentUids.map(uid => 
+          db.collection('users').doc(uid).get()
+        )
+      );
+      
+      const fcmTokens: string[] = [];
+      for (const doc of residentDocs) {
+        if (doc.exists) {
+          const userData = doc.data()!;
+          if (userData.fcmTokens) {
+            fcmTokens.push(...userData.fcmTokens);
+          }
         }
       }
       
-      if (tokens.length === 0) {
-        console.log('No FCM tokens found');
-        return null;
-      }
-      
-      // Prepare notification payload
-      const message: admin.messaging.MulticastMessage = {
-        tokens: tokens,
-        notification: {
-          title: '🚪 New Visitor Alert',
-          body: `${visitorData.visitorName} is at ${visitorData.gateNumber}`,
-        },
-        data: {
-          type: 'visitor',
-          visitorId: visitorId,
-          visitorName: visitorData.visitorName,
-          purpose: visitorData.purpose || '',
-          gateNumber: visitorData.gateNumber,
-          photoUrl: visitorData.visitorPhotoUrl || '',
-          flatId: visitorData.hostFlatId,
-          deepLink: `/visitor/approve/${visitorId}`,
-        },
-        android: {
-          priority: 'high',
+      if (fcmTokens.length === 0) {
+        console.log('No FCM tokens found for residents');
+      } else {
+        // Send FCM notification
+        const message: admin.messaging.MulticastMessage = {
+          tokens: fcmTokens,
           notification: {
-            channelId: 'visitors',
-            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+            title: 'New Visitor Alert',
+            body: `${visitorData.visitorName} has arrived at ${visitorData.gateName}`,
           },
-        },
-        apns: {
-          payload: {
-            aps: {
-              contentAvailable: true,
+          data: {
+            type: 'visitor',
+            visitorId: visitorId,
+            visitorName: visitorData.visitorName,
+            purpose: visitorData.purpose,
+            gateName: visitorData.gateName,
+            deepLink: `societyguardian://visitor/${visitorId}`,
+          },
+          android: {
+            priority: 'high',
+            notification: {
               sound: 'default',
+              channelId: 'visitor_notifications',
             },
           },
-          headers: {
-            'apns-priority': '10',
+          apns: {
+            payload: {
+              aps: {
+                sound: 'default',
+                badge: 1,
+              },
+            },
           },
-        },
-      };
+        };
+        
+        await messaging.sendEachForMulticast(message);
+        console.log('FCM notifications sent successfully');
+      }
       
-      // Send notifications
-      const response = await messaging.sendEachForMulticast(message);
-      console.log(`Sent ${response.successCount} notifications`);
-      
-      // Create in-app notifications
-      const notifications = memberUids.map((uid: string) => ({
-        id: db.collection('notifications').doc().id,
-        userId: uid,
+      // Create notification document in Firestore
+      const notificationData = {
+        societyId: societyId,
         type: 'visitor',
         title: 'New Visitor Alert',
-        body: `${visitorData.visitorName} is at ${visitorData.gateNumber}`,
+        body: `${visitorData.visitorName} has arrived at ${visitorData.gateName}`,
+        targetUserIds: residentUids,
+        targetFlatIds: [visitorData.hostFlatId],
+        deepLink: `societyguardian://visitor/${visitorId}`,
         data: {
-          visitorId,
+          visitorId: visitorId,
           visitorName: visitorData.visitorName,
-          gateNumber: visitorData.gateNumber,
+          purpose: visitorData.purpose,
+          gateName: visitorData.gateName,
         },
-        imageUrl: visitorData.visitorPhotoUrl || null,
-        actionUrl: `/visitor/approve/${visitorId}`,
+        priority: 3,
         isRead: false,
+        shouldSendPush: true,
+        shouldShowInApp: true,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      }));
+      };
       
-      const batch = db.batch();
-      notifications.forEach((notif: any) => {
-        batch.set(
-          db.collection('societies').doc(societyId).collection('notifications').doc(notif.id),
-          notif
-        );
+      await db
+        .collection('societies')
+        .doc(societyId)
+        .collection('notifications')
+        .add(notificationData);
+      
+      console.log('Notification document created');
+      
+      // Log audit trail
+      await db.collection('audit_logs').add({
+        action: 'visitor_created',
+        visitorId: visitorId,
+        societyId: societyId,
+        performedBy: visitorData.createdBy || 'system',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        details: visitorData,
       });
-      await batch.commit();
       
-      return null;
     } catch (error) {
-      console.error('Error sending visitor notification:', error);
-      return null;
+      console.error('Error in onVisitorCreate:', error);
+      throw error;
     }
   });
 
 /**
- * Auto-expire pending visitors after timeout (2 hours default)
+ * Scheduled function to expire pending visitors after 24 hours
  */
-export const onVisitorExpire = functions.pubsub
-  .schedule('every 15 minutes')
+export const expirePendingVisitors = functions.pubsub
+  .schedule('every 60 minutes')
   .onRun(async (context) => {
-    const now = admin.firestore.Timestamp.now();
-    const expiryThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     
     try {
-      const expiredVisitors = await db
-        .collectionGroup('visitors')
-        .where('status', '==', 'pending')
-        .where('taggedAt', '<', admin.firestore.Timestamp.fromDate(expiryThreshold))
-        .get();
+      const societiesSnapshot = await db.collection('societies').get();
       
-      const batch = db.batch();
-      expiredVisitors.forEach((doc) => {
-        batch.update(doc.ref, {
-          status: 'expired',
-          updatedAt: now,
-        });
-      });
+      const updatePromises: Promise<void>[] = [];
       
-      await batch.commit();
-      console.log(`Expired ${expiredVisitors.size} pending visitors`);
-      
-      return null;
-    } catch (error) {
-      console.error('Error expiring visitors:', error);
-      return null;
-    }
-  });
-
-/**
- * Send daily reminders for pending visitor approvals
- */
-export const sendScheduledNotifications = functions.pubsub
-  .schedule('0 9 * * *') // Every day at 9 AM
-  .onRun(async (context) => {
-    try {
-      const societies = await db.collection('societies').get();
-      
-      for (const societyDoc of societies.docs) {
-        const societyId = societyDoc.id;
-        
-        // Get pending visitors from last 24 hours
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        const pendingVisitors = await db
+      for (const societyDoc of societiesSnapshot.docs) {
+        const expiredVisitors = await db
           .collection('societies')
-          .doc(societyId)
+          .doc(societyDoc.id)
           .collection('visitors')
           .where('status', '==', 'pending')
-          .where('taggedAt', '>', admin.firestore.Timestamp.fromDate(yesterday))
+          .where('createdAt', '<=', oneDayAgo)
           .get();
         
-        if (pendingVisitors.empty) continue;
-        
-        // Group by flat and notify members
-        const flatVisitorMap = new Map<string, any[]>();
-        pendingVisitors.forEach((doc) => {
-          const data = doc.data();
-          const flatId = data.hostFlatId;
-          if (!flatVisitorMap.has(flatId)) {
-            flatVisitorMap.set(flatId, []);
-          }
-          flatVisitorMap.get(flatId)!.push(data);
-        });
-        
-        // Send reminders for each flat
-        for (const [flatId, visitors] of flatVisitorMap.entries()) {
-          const flatDoc = await db
-            .collection('societies')
-            .doc(societyId)
-            .collection('flats')
-            .doc(flatId)
-            .get();
-          
-          if (!flatDoc.exists) continue;
-          
-          const memberUids = flatDoc.data()?.memberUids || [];
-          // Send reminder notifications...
+        for (const visitorDoc of expiredVisitors.docs) {
+          const updatePromise = visitorDoc.ref.update({
+            status: 'expired',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          updatePromises.push(updatePromise);
         }
       }
       
-      return null;
+      await Promise.all(updatePromises);
+      console.log(`Expired ${updatePromises.length} pending visitors`);
+      
     } catch (error) {
-      console.error('Error sending scheduled notifications:', error);
-      return null;
+      console.error('Error expiring visitors:', error);
     }
   });
 
-/**
- * Process payment webhooks (Stripe/Razorpay)
- */
-export const processPaymentWebhook = functions.https.onRequest(
-  async (req, res) => {
-    const sig = req.headers['stripe-signature'] as string;
-    
-    try {
-      // Verify webhook signature and process payment
-      // Implementation depends on payment gateway
-      
-      res.status(200).send({ received: true });
-    } catch (error) {
-      console.error('Webhook error:', error);
-      res.status(400).send('Webhook Error');
-    }
-  }
-);
+// ==================== NOTIFICATION FUNCTIONS ====================
 
 /**
- * Generate pre-approval QR code for residents
+ * Send scheduled announcements
  */
-export const generatePreApprovalCode = functions.https.onCall(
+export const sendScheduledNotifications = functions.pubsub
+  .schedule('every day 09:00')
+  .onRun(async (context) => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // Get upcoming bookings for tomorrow
+      const bookingsSnapshot = await db
+        .collectionGroup('bookings')
+        .where('startTime', '>=', today)
+        .where('startTime', '<', tomorrow)
+        .where('status', '==', 'confirmed')
+        .get();
+      
+      const notificationPromises: Promise<void>[] = [];
+      
+      for (const bookingDoc of bookingsSnapshot.docs) {
+        const bookingData = bookingDoc.data();
+        
+        // Get resident FCM tokens
+        const userDoc = await db
+          .collection('users')
+          .doc(bookingData.bookedBy)
+          .get();
+        
+        if (userDoc.exists) {
+          const userData = userDoc.data()!;
+          const fcmTokens = userData.fcmTokens || [];
+          
+          if (fcmTokens.length > 0) {
+            const message: admin.messaging.Message = {
+              token: fcmTokens[0],
+              notification: {
+                title: 'Booking Reminder',
+                body: `Your ${bookingData.amenityName} booking is tomorrow`,
+              },
+              data: {
+                type: 'booking_reminder',
+                bookingId: bookingDoc.id,
+                amenityName: bookingData.amenityName,
+                deepLink: `societyguardian://booking/${bookingDoc.id}`,
+              },
+            };
+            
+            await messaging.send(message);
+          }
+        }
+      }
+      
+      console.log('Scheduled notifications sent');
+      
+    } catch (error) {
+      console.error('Error sending scheduled notifications:', error);
+    }
+  });
+
+// ==================== PAYMENT FUNCTIONS ====================
+
+/**
+ * Process payment webhook (Stripe/Razorpay)
+ */
+export const processPaymentWebhook = functions.https.onCall(
   async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -261,45 +265,108 @@ export const generatePreApprovalCode = functions.https.onCall(
       );
     }
     
-    const { flatId, visitorName, validUntil } = data;
-    const userId = context.auth.uid;
+    const { paymentId, status, transactionId, amount } = data;
     
     try {
-      // Verify user is member of the flat
-      // Generate unique code
-      // Store in pre_approvals collection
-      // Return code for QR generation
+      await db.doc(`payments/${paymentId}`).update({
+        status: status,
+        transactionId: transactionId,
+        paidAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
       
-      return { success: true, code: 'PREAPPROVAL123' };
+      // Create audit log
+      await db.collection('audit_logs').add({
+        action: 'payment_processed',
+        paymentId: paymentId,
+        status: status,
+        amount: amount,
+        performedBy: context.auth.uid,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      
+      return { success: true };
+      
     } catch (error) {
-      throw new functions.https.HttpsError('internal', error.message);
+      console.error('Error processing payment:', error);
+      throw new functions.https.HttpsError(
+        'internal',
+        'Failed to process payment'
+      );
     }
   }
 );
 
+// ==================== ADMIN FUNCTIONS ====================
+
 /**
- * Clean up old data based on retention policy
+ * Assign custom claims to users
  */
-export const cleanupOldData = functions.pubsub
-  .schedule('0 2 * * 0') // Every Sunday at 2 AM
-  .onRun(async (context) => {
-    const retentionDays = 90; // Keep data for 90 days
-    const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+export const assignUserRole = functions.https.onCall(
+  async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'User must be authenticated'
+      );
+    }
+    
+    // Check if caller is admin
+    const callerDoc = await db
+      .collection('users')
+      .doc(context.auth.uid)
+      .get();
+    
+    if (!callerDoc.exists || callerDoc.data()?.role !== 'admin') {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Only admins can assign roles'
+      );
+    }
+    
+    const { userId, role } = data;
+    
+    if (!['resident', 'security', 'admin', 'vendor'].includes(role)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Invalid role'
+      );
+    }
     
     try {
-      // Archive or delete old visitor records
-      const oldVisitors = await db
-        .collectionGroup('visitors')
-        .where('taggedAt', '<', admin.firestore.Timestamp.fromDate(cutoffDate))
-        .where('status', 'in', ['checked_out', 'expired', 'rejected'])
-        .get();
+      // Set custom claims
+      await admin.auth().setCustomUserClaims(userId, { role });
       
-      // Move to archive collection or delete
-      console.log(`Found ${oldVisitors.size} old visitor records to clean up`);
+      // Update Firestore user document
+      await db.collection('users').doc(userId).update({
+        role: role,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
       
-      return null;
+      // Audit log
+      await db.collection('audit_logs').add({
+        action: 'role_assigned',
+        targetUserId: userId,
+        newRole: role,
+        performedBy: context.auth.uid,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      
+      return { success: true };
+      
     } catch (error) {
-      console.error('Error cleaning up old data:', error);
-      return null;
+      console.error('Error assigning role:', error);
+      throw new functions.https.HttpsError(
+        'internal',
+        'Failed to assign role'
+      );
     }
-  });
+  }
+);
+
+// Export all functions
+exports.onVisitorCreate = onVisitorCreate;
+exports.expirePendingVisitors = expirePendingVisitors;
+exports.sendScheduledNotifications = sendScheduledNotifications;
+exports.processPaymentWebhook = processPaymentWebhook;
+exports.assignUserRole = assignUserRole;

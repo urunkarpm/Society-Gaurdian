@@ -1,269 +1,181 @@
-import 'package:go_router/go_router.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../core/constants/app_constants.dart';
+import '../../domain/entities/user_entity.dart';
 import '../providers/auth_provider.dart';
-import '../../features/visitor_tracking/screens/guard_home_screen.dart';
-import '../../features/visitor_tracking/screens/resident_visitor_screen.dart';
-import '../../features/complaints/screens/complaint_list_screen.dart';
-import '../../features/amenity_booking/screens/amenity_list_screen.dart';
-import '../../features/announcements/screens/announcement_list_screen.dart';
-import '../../features/billing/screens/billing_screen.dart';
-import '../../features/security/screens/emergency_screen.dart';
-import '../../features/community/screens/community_hub_screen.dart';
-import '../screens/login_screen.dart';
-import '../screens/splash_screen.dart';
-import '../screens/no_internet_screen.dart';
+import '../screens/auth/login_screen.dart';
+import '../screens/auth/splash_screen.dart';
+import '../screens/resident/resident_home_screen.dart';
+import '../screens/guard/guard_home_screen.dart';
+import '../screens/admin/admin_dashboard_screen.dart';
+import '../../core/constants/app_constants.dart';
 
 /// App router provider
-@riverpod
-GoRouter appRouter(AppRouterRef ref) {
-  final authState = ref.watch(authProvider);
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final authService = ref.watch(authServiceProviders);
   
   return GoRouter(
     initialLocation: '/',
-    debugLogDiagnostics: true,
+    debugLogDiagnostics: (String message, String? hint) => true,
     redirect: (context, state) {
-      final isLoggedIn = authState.isAuthenticated;
+      final isLoggedIn = authService.currentUser != null;
       final isLoggingIn = state.matchedLocation == '/login';
       final isSplash = state.matchedLocation == '/';
       
-      // If still loading on splash, stay there
-      if (isSplash && authState.isLoading) {
-        return null;
+      if (isSplash) {
+        return null; // Allow splash to load
       }
       
-      // If not logged in and not going to login, redirect to login
       if (!isLoggedIn && !isLoggingIn) {
         return '/login';
       }
       
-      // If logged in and going to login or splash, redirect to home
-      if (isLoggedIn && (isLoggingIn || isSplash)) {
-        if (authState.isSecurityPersonnel) {
-          return '/guard-home';
-        } else {
-          return '/resident-home';
+      if (isLoggedIn && (isSplash || isLoggingIn)) {
+        final user = authService.currentUser;
+        if (user != null) {
+          final role = UserRole.values.firstWhere(
+            (e) => e.name == user.claims['role'] ?? 'resident',
+            orElse: () => UserRole.resident,
+          );
+          
+          switch (role) {
+            case UserRole.resident:
+              return '/resident/home';
+            case UserRole.security:
+              return '/guard/home';
+            case UserRole.admin:
+              return '/admin/dashboard';
+            case UserRole.vendor:
+              return '/vendor/home';
+          }
         }
       }
       
       return null;
     },
     routes: [
-      // Public routes
+      // Splash route
       GoRoute(
         path: '/',
-        name: 'splash',
         builder: (context, state) => const SplashScreen(),
       ),
+      
+      // Auth routes
       GoRoute(
         path: '/login',
-        name: 'login',
         builder: (context, state) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: '/no-internet',
-        name: 'no-internet',
-        builder: (context, state) => const NoInternetScreen(),
-      ),
-      
-      // Security personnel routes
-      GoRoute(
-        path: '/guard-home',
-        name: 'guard-home',
-        builder: (context, state) => const GuardHomeScreen(),
       ),
       
       // Resident routes
-      ShellRoute(
-        builder: (context, state, child) => _ResidentShell(child: child),
-        routes: [
-          GoRoute(
-            path: '/resident-home',
-            name: 'resident-home',
-            pageBuilder: (context, state) => NoTransitionPage(child: const ResidentVisitorScreen()),
-            routes: [
-              GoRoute(
-                path: 'complaints',
-                name: 'complaints',
-                builder: (context, state) => const ComplaintListScreen(),
-              ),
-              GoRoute(
-                path: 'amenities',
-                name: 'amenities',
-                builder: (context, state) => const AmenityListScreen(),
-              ),
-              GoRoute(
-                path: 'announcements',
-                name: 'announcements',
-                builder: (context, state) => const AnnouncementListScreen(),
-              ),
-              GoRoute(
-                path: 'billing',
-                name: 'billing',
-                builder: (context, state) => const BillingScreen(),
-              ),
-              GoRoute(
-                path: 'emergency',
-                name: 'emergency',
-                builder: (context, state) => const EmergencyScreen(),
-              ),
-              GoRoute(
-                path: 'community',
-                name: 'community',
-                builder: (context, state) => const CommunityHubScreen(),
-              ),
-            ],
-          ),
-        ],
+      GoRoute(
+        path: '/resident/home',
+        builder: (context, state) => const ResidentHomeScreen(),
+      ),
+      GoRoute(
+        path: '/resident/visitors',
+        builder: (context, state) => const ResidentHomeScreen(),
+      ),
+      GoRoute(
+        path: '/resident/complaints',
+        builder: (context, state) => const ResidentHomeScreen(),
+      ),
+      GoRoute(
+        path: '/resident/bookings',
+        builder: (context, state) => const ResidentHomeScreen(),
+      ),
+      GoRoute(
+        path: '/resident/profile',
+        builder: (context, state) => const ResidentHomeScreen(),
+      ),
+      
+      // Guard routes
+      GoRoute(
+        path: '/guard/home',
+        builder: (context, state) => const GuardHomeScreen(),
+      ),
+      GoRoute(
+        path: '/guard/scan',
+        builder: (context, state) => const GuardHomeScreen(),
+      ),
+      GoRoute(
+        path: '/guard/history',
+        builder: (context, state) => const GuardHomeScreen(),
+      ),
+      
+      // Admin routes
+      GoRoute(
+        path: '/admin/dashboard',
+        builder: (context, state) => const AdminDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/admin/users',
+        builder: (context, state) => const AdminDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/admin/announcements',
+        builder: (context, state) => const AdminDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/admin/reports',
+        builder: (context, state) => const AdminDashboardScreen(),
       ),
       
       // Deep link routes
       GoRoute(
-        path: '/visitor/approve/:visitorId',
-        name: 'visitor-approve',
-        builder: (context, state) => VisitorApproveScreen(
-          visitorId: state.pathParameters['visitorId']!,
-        ),
+        path: '/visitor/:visitorId',
+        builder: (context, state) {
+          final visitorId = state.pathParameters['visitorId'];
+          // Return visitor detail screen
+          return const ResidentHomeScreen();
+        },
       ),
       GoRoute(
         path: '/complaint/:complaintId',
-        name: 'complaint-detail',
-        builder: (context, state) => ComplaintDetailScreen(
-          complaintId: state.pathParameters['complaintId']!,
-        ),
+        builder: (context, state) {
+          final complaintId = state.pathParameters['complaintId'];
+          // Return complaint detail screen
+          return const ResidentHomeScreen();
+        },
       ),
       GoRoute(
         path: '/booking/:bookingId',
-        name: 'booking-detail',
-        builder: (context, state) => BookingDetailScreen(
-          bookingId: state.pathParameters['bookingId']!,
-        ),
+        builder: (context, state) {
+          final bookingId = state.pathParameters['bookingId'];
+          // Return booking detail screen
+          return const ResidentHomeScreen();
+        },
+      ),
+      GoRoute(
+        path: '/payment/:paymentId',
+        builder: (context, state) {
+          final paymentId = state.pathParameters['paymentId'];
+          // Return payment detail screen
+          return const ResidentHomeScreen();
+        },
       ),
     ],
-  );
-}
-
-/// Resident shell with bottom navigation
-class _ResidentShell extends StatelessWidget {
-  final Widget child;
-  
-  const _ResidentShell({required this.child});
-  
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: BottomNavigationBar(
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_outlined),
-            activeIcon: Icon(Icons.notifications),
-            label: 'Notices',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.build_outlined),
-            activeIcon: Icon(Icons.build),
-            label: 'Services',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            activeIcon: Icon(Icons.account_balance_wallet),
-            label: 'Payments',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            activeIcon: Icon(Icons.people),
-            label: 'Community',
-          ),
-        ],
-        currentIndex: _calculateSelectedIndex(context),
-        onTap: (index) => _onItemTapped(context, index),
+    errorBuilder: (context, state) => Scaffold(
+      body: Center(
+        child: Text('Page not found: ${state.matchedLocation}'),
       ),
-    );
-  }
-  
-  int _calculateSelectedIndex(BuildContext context) {
-    final location = GoRouterState.of(context).uri.path;
-    if (location.startsWith('/resident-home/complaints') || 
-        location.startsWith('/resident-home/amenities')) {
-      return 2;
-    }
-    if (location.startsWith('/resident-home/announcements')) {
-      return 1;
-    }
-    if (location.startsWith('/resident-home/billing')) {
-      return 3;
-    }
-    if (location.startsWith('/resident-home/community')) {
-      return 4;
-    }
-    return 0;
-  }
-  
-  void _onItemTapped(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.go('/resident-home');
-        break;
-      case 1:
-        context.go('/resident-home/announcements');
-        break;
-      case 2:
-        context.go('/resident-home/complaints');
-        break;
-      case 3:
-        context.go('/resident-home/billing');
-        break;
-      case 4:
-        context.go('/resident-home/community');
-        break;
-    }
-  }
-}
+    ),
+  );
+});
 
-// Placeholder screens for routes
-class VisitorApproveScreen extends StatelessWidget {
-  final String visitorId;
-  const VisitorApproveScreen({super.key, required this.visitorId});
+/// Route guard for role-based access
+class RoleGuard {
+  final List<UserRole> allowedRoles;
   
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Approve Visitor')),
-      body: Center(child: Text('Visitor Approval: $visitorId')),
-    );
-  }
-}
-
-class ComplaintDetailScreen extends StatelessWidget {
-  final String complaintId;
-  const ComplaintDetailScreen({super.key, required this.complaintId});
+  const RoleGuard({required this.allowedRoles});
   
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Complaint Details')),
-      body: Center(child: Text('Complaint: $complaintId')),
-    );
+  bool canAccess(UserRole userRole) {
+    return allowedRoles.contains(userRole);
   }
-}
-
-class BookingDetailScreen extends StatelessWidget {
-  final String bookingId;
-  const BookingDetailScreen({super.key, required this.bookingId});
   
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Booking Details')),
-      body: Center(child: Text('Booking: $bookingId')),
-    );
-  }
+  static const residentOnly = RoleGuard(allowedRoles: [UserRole.resident]);
+  static const securityOnly = RoleGuard(allowedRoles: [UserRole.security]);
+  static const adminOnly = RoleGuard(allowedRoles: [UserRole.admin]);
+  static const vendorOnly = RoleGuard(allowedRoles: [UserRole.vendor]);
+  static const staffOnly = RoleGuard(allowedRoles: [UserRole.security, UserRole.admin]);
+  static const allRoles = RoleGuard(allowedRoles: UserRole.values);
 }
