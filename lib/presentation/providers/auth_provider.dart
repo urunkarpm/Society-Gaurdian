@@ -1,398 +1,289 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dartz/dartz.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../domain/entities/user_entity.dart';
 import '../../core/constants/app_constants.dart';
-import '../entities/user_entity.dart';
-import '../repositories/auth_repository_interface.dart';
+import '../../core/utils/logger.dart';
 
-part 'auth_provider.g.dart';
-
-/// Secure storage for tokens
-const _secureStorage = FlutterSecureStorage();
-
-/// Authentication state
-enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
-
-/// Auth state holder
-class AuthState {
-  final AuthStatus status;
-  final UserEntity? user;
-  final String? errorMessage;
-  final bool isSecurityPersonnel;
-  final bool isAdmin;
-
-  const AuthState({
-    this.status = AuthStatus.initial,
-    this.user,
-    this.errorMessage,
-    this.isSecurityPersonnel = false,
-    this.isAdmin = false,
-  });
-
-  AuthState copyWith({
-    AuthStatus? status,
-    UserEntity? user,
-    String? errorMessage,
-    bool? isSecurityPersonnel,
-    bool? isAdmin,
-  }) {
-    return AuthState(
-      status: status ?? this.status,
-      user: user ?? this.user,
-      errorMessage: errorMessage ?? this.errorMessage,
-      isSecurityPersonnel: isSecurityPersonnel ?? this.isSecurityPersonnel,
-      isAdmin: isAdmin ?? this.isAdmin,
-    );
-  }
-
-  bool get isAuthenticated => status == AuthStatus.authenticated && user != null;
-  bool get isLoading => status == AuthStatus.loading;
-  bool get isError => status == AuthStatus.error;
-}
-
-/// Auth notifier provider
-@riverpod
-class Auth extends _$Auth {
-  late final AuthRepositoryInterface _repository;
-
-  @override
-  AuthState build() {
-    _repository = ref.read(authRepositoryProvider);
+/// Authentication state provider
+final authStateProvider = StreamProvider<UserEntity?>((ref) {
+  return FirebaseAuth.instance.authStateChanges().asyncMap((user) async {
+    if (user == null) return null;
     
-    // Listen to auth state changes
-    FirebaseAuth.instance.authStateChanges().listen((firebaseUser) {
-      if (firebaseUser != null) {
-        _loadUserData(firebaseUser.uid);
-      } else {
-        state = const AuthState(status: AuthStatus.unauthenticated);
-      }
-    });
-
-    return const AuthState(status: AuthStatus.initial);
-  }
-
-  Future<void> _loadUserData(String uid) async {
-    state = state.copyWith(status: AuthStatus.loading);
+    // Fetch user profile from Firestore
+    final userDoc = await FirebaseFirestore.instance
+        .collection(AppConstants.usersCollection)
+        .doc(user.uid)
+        .get();
     
-    try {
-      final result = await _repository.getUserByUid(uid);
-      
-      result.fold(
-        (failure) {
-          state = state.copyWith(
-            status: AuthStatus.error,
-            errorMessage: 'Failed to load user data',
-          );
-        },
-        (user) {
-          state = state.copyWith(
-            status: AuthStatus.authenticated,
-            user: user,
-            isSecurityPersonnel: user.role == AppConstants.roleSecurity,
-            isAdmin: user.role == AppConstants.roleAdmin,
-          );
-        },
-      );
-    } catch (e) {
-      state = state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: e.toString(),
-      );
+    if (!userDoc.exists) {
+      Logger.warning('User document not found', tag: 'AuthProvider');
+      return null;
     }
-  }
+    
+    final data = userDoc.data()!;
+    return UserEntity(
+      uid: user.uid,
+      email: user.email ?? data['email'] ?? '',
+      phoneNumber: user.phoneNumber ?? data['phoneNumber'],
+      displayName: user.displayName ?? data['displayName'],
+      photoUrl: user.photoURL ?? data['photoUrl'],
+      role: UserRole.values.firstWhere(
+        (e) => e.name == data['role'],
+        orElse: () => UserRole.resident,
+      ),
+      societyId: data['societyId'],
+      flatId: data['flatId'],
+      isEmailVerified: user.emailVerified || data['isEmailVerified'] ?? false,
+      isPhoneVerified: user.phoneNumber != null || data['isPhoneVerified'] ?? false,
+      isActive: data['isActive'] ?? true,
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+      lastLoginAt: (data['lastLoginAt'] as Timestamp?)?.toDate(),
+      metadata: data['metadata'] as Map<String, dynamic>?,
+    );
+  });
+});
+
+/// Current user provider
+final currentUserProvider = Provider<UserEntity?>((ref) {
+  final authState = ref.watch(authStateProvider);
+  return authState.value;
+});
+
+/// User role provider
+final userRoleProvider = Provider<UserRole?>((ref) {
+  final user = ref.watch(currentUserProvider);
+  return user?.role;
+});
+
+/// Check if user is resident
+final isResidentProvider = Provider<bool>((ref) {
+  final role = ref.watch(userRoleProvider);
+  return role == UserRole.resident;
+});
+
+/// Check if user is security
+final isSecurityProvider = Provider<bool>((ref) {
+  final role = ref.watch(userRoleProvider);
+  return role == UserRole.security;
+});
+
+/// Check if user is admin
+final isAdminProvider = Provider<bool>((ref) {
+  final role = ref.watch(userRoleProvider);
+  return role == UserRole.admin;
+});
+
+/// Society ID provider
+final societyIdProvider = Provider<String?>((ref) {
+  final user = ref.watch(currentUserProvider);
+  return user?.societyId;
+});
+
+/// Flat ID provider
+final flatIdProvider = Provider<String?>((ref) {
+  final user = ref.watch(currentUserProvider);
+  return user?.flatId;
+});
+
+/// Authentication service provider
+final authServiceProviders = Provider<AuthService>((ref) {
+  return AuthService();
+});
+
+/// Authentication Service
+class AuthService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  User? get currentUser => _auth.currentUser;
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   /// Sign in with email and password (for security personnel)
-  Future<Either<String, UserEntity>> signInWithEmailAndPassword({
+  Future<UserCredential> signInWithEmailAndPassword({
     required String email,
     required String password,
   }) async {
-    state = state.copyWith(status: AuthStatus.loading);
-    
     try {
-      final result = await _repository.signInWithEmailAndPassword(
+      Logger.log('Signing in with email', tag: 'AuthService');
+      final credential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
       
-      return result.fold(
-        (failure) => Left(failure),
-        (user) {
-          state = state.copyWith(
-            status: AuthStatus.authenticated,
-            user: user,
-            isSecurityPersonnel: user.role == AppConstants.roleSecurity,
-            isAdmin: user.role == AppConstants.roleAdmin,
-          );
-          return Right(user);
-        },
-      );
-    } catch (e) {
-      state = state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: e.toString(),
-      );
-      return Left(e.toString());
+      // Update last login time
+      await _updateLastLogin(credential.user!.uid);
+      
+      Logger.auth('Sign in successful', userId: credential.user!.uid);
+      return credential;
+    } catch (e, stackTrace) {
+      Logger.error('Sign in failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
+      rethrow;
     }
   }
 
-  /// Sign in with phone OTP (for residents)
-  Future<Either<String, void>> signInWithPhone({
+  /// Sign in with phone number (for residents)
+  Future<void> signInWithPhone({
     required String phoneNumber,
+    required Function(String verificationId) onCodeSent,
+    required Function(FirebaseAuthException error) onError,
+  }) async {
+    try {
+      Logger.log('Sending OTP to $phoneNumber', tag: 'AuthService');
+      await _auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        timeout: const Duration(seconds: 60),
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          Logger.log('Auto verification completed', tag: 'AuthService');
+          await _auth.signInWithCredential(credential);
+        },
+        verificationFailed: onError,
+        codeSent: (String verificationId, int? resendToken) {
+          onCodeSent(verificationId);
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {},
+      );
+    } catch (e, stackTrace) {
+      Logger.error('Phone sign in failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
+      rethrow;
+    }
+  }
+
+  /// Verify OTP and sign in
+  Future<UserCredential> verifyOtpAndSignIn({
     required String verificationId,
     required String smsCode,
   }) async {
-    state = state.copyWith(status: AuthStatus.loading);
-    
     try {
-      final result = await _repository.signInWithPhone(
+      Logger.log('Verifying OTP', tag: 'AuthService');
+      final credential = PhoneAuthProvider.credential(
         verificationId: verificationId,
         smsCode: smsCode,
       );
       
-      return result.fold(
-        (failure) => Left(failure),
-        (_) {
-          // Auth state listener will handle the rest
-          return const Right(null);
-        },
-      );
-    } catch (e) {
-      state = state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: e.toString(),
-      );
-      return Left(e.toString());
-    }
-  }
-
-  /// Send OTP for phone authentication
-  Future<Either<String, String>> sendPhoneOTP({
-    required String phoneNumber,
-    required void Function(String verificationId) onCodeSent,
-  }) async {
-    try {
-      return await _repository.sendPhoneOTP(
-        phoneNumber: phoneNumber,
-        onCodeSent: onCodeSent,
-      );
-    } catch (e) {
-      return Left(e.toString());
+      final userCredential = await _auth.signInWithCredential(credential);
+      await _updateLastLogin(userCredential.user!.uid);
+      
+      Logger.auth('OTP verification successful', userId: userCredential.user!.uid);
+      return userCredential;
+    } catch (e, stackTrace) {
+      Logger.error('OTP verification failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
+      rethrow;
     }
   }
 
   /// Sign out
   Future<void> signOut() async {
-    await _repository.signOut();
-    state = const AuthState(status: AuthStatus.unauthenticated);
-  }
-
-  /// Check biometric authentication
-  Future<bool> authenticateWithBiometrics() async {
-    return await _repository.authenticateWithBiometrics();
-  }
-
-  /// Refresh user data
-  Future<void> refreshUserData() async {
-    if (state.user != null) {
-      await _loadUserData(state.user!.uid);
-    }
-  }
-}
-
-/// Auth repository provider
-@riverpod
-AuthRepositoryInterface authRepository(AuthRepositoryRef ref) {
-  return AuthRepository(
-    firestore: FirebaseFirestore.instance,
-    auth: FirebaseAuth.instance,
-    secureStorage: _secureStorage,
-  );
-}
-
-/// Current user provider
-@riverpod
-UserEntity? currentUser(CurrentUserRef ref) {
-  final authState = ref.watch(authProvider);
-  return authState.user;
-}
-
-/// Current user role provider
-@riverpod
-String? currentUserRole(CurrentUserRoleRef ref) {
-  final user = ref.watch(currentUserProvider);
-  return user?.role;
-}
-
-/// Is security personnel provider
-@riverpod
-bool isSecurityPersonnel(IsSecurityPersonnelRef ref) {
-  final authState = ref.watch(authProvider);
-  return authState.isSecurityPersonnel;
-}
-
-/// Is admin provider
-@riverpod
-bool isAdmin(IsAdminRef ref) {
-  final authState = ref.watch(authProvider);
-  return authState.isAdmin;
-}
-
-/// Auth repository implementation
-class AuthRepository implements AuthRepositoryInterface {
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
-  final FlutterSecureStorage _secureStorage;
-
-  AuthRepository({
-    required FirebaseFirestore firestore,
-    required FirebaseAuth auth,
-    required FlutterSecureStorage secureStorage,
-  })  : _firestore = firestore,
-        _auth = auth,
-        _secureStorage = secureStorage;
-
-  @override
-  Future<Either<String, UserEntity>> getUserByUid(String uid) async {
     try {
-      final doc = await _firestore
-          .collection(AppConstants.usersCollection)
-          .doc(uid)
-          .get();
-
-      if (!doc.exists) {
-        return const Left('User not found');
-      }
-
-      final user = UserEntity.fromJson(doc.data()!);
-      return Right(user);
-    } catch (e) {
-      return Left('Error fetching user: ${e.toString()}');
+      Logger.log('Signing out', tag: 'AuthService');
+      await _auth.signOut();
+      Logger.auth('Sign out successful');
+    } catch (e, stackTrace) {
+      Logger.error('Sign out failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
+      rethrow;
     }
   }
 
-  @override
-  Future<Either<String, UserEntity>> signInWithEmailAndPassword({
+  /// Create user profile in Firestore
+  Future<void> createUserProfile({
+    required String uid,
     required String email,
-    required String password,
+    required UserRole role,
+    String? phoneNumber,
+    String? displayName,
+    String? societyId,
+    String? flatId,
   }) async {
     try {
-      final credential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      Logger.log('Creating user profile', tag: 'AuthService');
+      final userData = {
+        'uid': uid,
+        'email': email,
+        'phoneNumber': phoneNumber,
+        'displayName': displayName,
+        'role': role.name,
+        'societyId': societyId,
+        'flatId': flatId,
+        'isEmailVerified': false,
+        'isPhoneVerified': phoneNumber != null,
+        'isActive': true,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
 
-      final userDoc = await _firestore
-          .collection(AppConstants.usersCollection)
-          .doc(credential.user!.uid)
-          .get();
+      await _firestore.collection(AppConstants.usersCollection).doc(uid).set(userData);
+      Logger.firestore('create', AppConstants.usersCollection, docId: uid, data: userData);
+    } catch (e, stackTrace) {
+      Logger.error('Create user profile failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
+      rethrow;
+    }
+  }
 
-      if (!userDoc.exists) {
-        await _auth.signOut();
-        return const Left('User profile not found');
-      }
+  /// Update last login timestamp
+  Future<void> _updateLastLogin(String uid) async {
+    try {
+      await _firestore.collection(AppConstants.usersCollection).doc(uid).update({
+        'lastLoginAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e, stackTrace) {
+      Logger.error('Update last login failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
+    }
+  }
 
-      final user = UserEntity.fromJson(userDoc.data()!);
+  /// Get custom claims
+  Future<Map<String, dynamic>?> getCustomClaims() async {
+    try {
+      final user = currentUser;
+      if (user == null) return null;
       
-      // Store token securely
-      final idToken = await credential.user!.getIdToken();
-      await _secureStorage.write(key: 'auth_token', value: idToken);
-
-      return Right(user);
-    } on FirebaseAuthException catch (e) {
-      return Left(_handleAuthException(e));
-    } catch (e) {
-      return Left('Sign in failed: ${e.toString()}');
+      await user.getIdTokenResult(true);
+      return user.claims;
+    } catch (e, stackTrace) {
+      Logger.error('Get custom claims failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
+      return null;
     }
   }
 
-  @override
-  Future<Either<String, void>> signInWithPhone({
-    required String verificationId,
-    required String smsCode,
+  /// Send password reset email
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      Logger.log('Sending password reset email', tag: 'AuthService');
+      await _auth.sendPasswordResetEmail(email: email);
+      Logger.log('Password reset email sent', tag: 'AuthService');
+    } catch (e, stackTrace) {
+      Logger.error('Send password reset failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
+      rethrow;
+    }
+  }
+
+  /// Update user profile
+  Future<void> updateProfile({
+    String? displayName,
+    String? photoUrl,
   }) async {
     try {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
+      final user = currentUser;
+      if (user == null) throw Exception('No user logged in');
+
+      await user.updateProfile(
+        displayName: displayName,
+        photoURL: photoUrl,
       );
 
-      await _auth.signInWithCredential(credential);
+      // Update Firestore as well
+      await _firestore.collection(AppConstants.usersCollection).doc(user.uid).update({
+        if (displayName != null) 'displayName': displayName,
+        if (photoUrl != null) 'photoUrl': photoUrl,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
       
-      // User document will be loaded by auth state listener
-      return const Right(null);
-    } on FirebaseAuthException catch (e) {
-      return Left(_handleAuthException(e));
-    } catch (e) {
-      return Left('Phone sign in failed: ${e.toString()}');
-    }
-  }
-
-  @override
-  Future<Either<String, String>> sendPhoneOTP({
-    required String phoneNumber,
-    required void Function(String verificationId) onCodeSent,
-  }) async {
-    try {
-      await _auth.verifyPhoneNumber(
-        phoneNumber: phoneNumber,
-        verificationCompleted: (credential) async {
-          await _auth.signInWithCredential(credential);
-        },
-        verificationFailed: (e) {
-          // Handled by caller
-        },
-        codeSent: (verificationId, resendToken) {
-          onCodeSent(verificationId);
-        },
-        codeAutoRetrievalTimeout: (verificationId) {
-          // Auto-retrieval timed out
-        },
-      );
-
-      return const Right('OTP sent successfully');
-    } on FirebaseAuthException catch (e) {
-      return Left(_handleAuthException(e));
-    } catch (e) {
-      return Left('Failed to send OTP: ${e.toString()}');
-    }
-  }
-
-  @override
-  Future<void> signOut() async {
-    await _secureStorage.delete(key: 'auth_token');
-    await _auth.signOut();
-  }
-
-  @override
-  Future<bool> authenticateWithBiometrics() async {
-    // Implementation in platform-specific code
-    // This is a placeholder
-    return false;
-  }
-
-  String _handleAuthException(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'invalid-email':
-        return 'Invalid email address';
-      case 'user-disabled':
-        return 'This account has been disabled';
-      case 'user-not-found':
-        return 'No account found with this email';
-      case 'wrong-password':
-        return 'Incorrect password';
-      case 'email-already-in-use':
-        return 'Email already in use';
-      case 'weak-password':
-        return 'Password is too weak';
-      case 'operation-not-allowed':
-        return 'This operation is not allowed';
-      case 'too-many-requests':
-        return 'Too many attempts. Try again later';
-      default:
-        return 'Authentication failed: ${e.message}';
+      Logger.log('Profile updated', tag: 'AuthService');
+    } catch (e, stackTrace) {
+      Logger.error('Update profile failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
+      rethrow;
     }
   }
 }

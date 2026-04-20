@@ -22,181 +22,79 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
-    function isVendor() {
-      return isAuthenticated() && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'vendor';
+    function getUserSociety() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return userDoc.societyId;
     }
     
-    function isSocietyMember(societyId) {
-      let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return user.societyId == societyId;
+    function getUserFlat() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return userDoc.flatId;
     }
     
-    function isFlatMember(flatId, societyId) {
-      let flat = get(/databases/$(database)/documents/societies/$(societyId)/flats/$(flatId));
-      return flat.data.memberUids.hasAny([request.auth.uid]);
-    }
-    
-    function isValidVisitorData(data) {
-      return data.visitorName is string &&
-             data.visitorName.size() > 0 &&
-             data.purpose is string &&
-             data.gateNumber is string &&
-             data.status is string &&
-             data.taggedBy is string &&
-             data.taggedAt is timestamp;
-    }
-    
-    // Users collection
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isSecurity() || isAdmin());
-      allow write: if request.auth.uid == userId || isAdmin();
-      allow update: if request.auth.uid == userId || isAdmin();
-    }
-    
-    // Societies collection
+    // ==================== SOCIETIES ====================
     match /societies/{societyId} {
-      allow read: if isAuthenticated() && isSocietyMember(societyId);
+      allow read: if isAuthenticated();
       allow write: if isAdmin();
       
-      // Flats subcollection
-      match /flats/{flatId} {
-        allow read: if isAuthenticated() && (isFlatMember(flatId, societyId) || isSecurity() || isAdmin());
-        allow write: if isAdmin();
-        
-        // Only admins can modify flat structure
-        allow update: if isAdmin();
-      }
-      
-      // Visitors subcollection - CORE FUNCTIONALITY
+      // ==================== VISITORS ====================
       match /visitors/{visitorId} {
-        allow read: if isAuthenticated() && (
-          // Security can read all visitors
-          isSecurity() || 
-          isAdmin() ||
-          // Residents can read visitors for their flat
-          (isResident() && resource.data.hostFlatId in 
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.flatId)
-        );
+        allow read: if isAuthenticated() && 
+                       (isSecurity() || isAdmin() || 
+                        (isResident() && resource.data.hostFlatId == getUserFlat()));
         
-        // Security personnel can create visitors
-        allow create: if isSecurity() && isValidVisitorData(request.resource.data);
+        allow create: if isSecurity() && 
+                         request.resource.data.keys().hasAll(['visitorName', 'hostFlatId', 'purpose']);
         
-        // Security and residents can update visitor status
         allow update: if isSecurity() || 
-                         (isResident() && 
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                            'status', 'approvedBy', 'approvedAt', 'rejectedBy', 
-                            'rejectionReason', 'rejectedAt'
-                          ]));
+                         (isResident() && resource.data.hostFlatId == getUserFlat());
         
-        allow delete: if isAdmin();
+        allow delete: if isAdmin() || isSecurity();
       }
       
-      // Notifications subcollection
+      // ==================== NOTIFICATIONS ====================
       match /notifications/{notificationId} {
-        allow read: if isAuthenticated() && isSocietyMember(societyId);
+        allow read: if isAuthenticated();
         allow create: if isAdmin() || isSecurity();
-        allow update: if request.auth.uid == resource.data.userId;
-      }
-      
-      // Complaints subcollection
-      match /complaints/{complaintId} {
-        allow read: if isAuthenticated() && (
-          isSecurity() || 
-          isAdmin() ||
-          (isResident() && resource.data.raisedByUid == request.auth.uid) ||
-          (resource.data.assignedToUid == request.auth.uid)
-        );
-        
-        allow create: if isAuthenticated() && isSocietyMember(societyId) &&
-                       request.resource.data.category is string &&
-                       request.resource.data.title is string &&
-                       request.resource.data.description is string;
-        
-        allow update: if isSecurity() || 
-                         isAdmin() ||
-                         (isResident() && resource.data.raisedByUid == request.auth.uid &&
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                            'status', 'rating', 'feedback', 'updates'
-                          ]));
-      }
-      
-      // Amenities subcollection
-      match /amenities/{amenityId} {
-        allow read: if isAuthenticated() && isSocietyMember(societyId);
-        allow write: if isAdmin();
-        
-        match /bookings/{bookingId} {
-          allow read: if isAuthenticated() && (
-            isAdmin() ||
-            (isResident() && (resource.data.bookedByUid == request.auth.uid ||
-                              isFlatMember(resource.data.flatId, societyId)))
-          );
-          
-          allow create: if isAuthenticated() && isSocietyMember(societyId) &&
-                         request.resource.data.slotDate is timestamp &&
-                         request.resource.data.bookedByUid == request.auth.uid;
-          
-          allow update: if isAdmin() ||
-                         (isResident() && resource.data.bookedByUid == request.auth.uid &&
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                            'status', 'cancellationReason', 'cancelledAt'
-                          ]));
-        }
-      }
-      
-      // Announcements subcollection
-      match /announcements/{announcementId} {
-        allow read: if isAuthenticated() && isSocietyMember(societyId);
-        allow create: if isAdmin();
         allow update: if isAdmin();
         allow delete: if isAdmin();
       }
       
-      // Maintenance/Payments subcollection
-      match /maintenance/{maintenanceId} {
-        allow read: if isAuthenticated() && (
-          isAdmin() ||
-          (isResident() && resource.data.flatId in 
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.flatId)
-        );
+      // ==================== COMPLAINTS ====================
+      match /complaints/{complaintId} {
+        allow read: if isAuthenticated();
+        allow create: if isResident();
+        allow update: if (resource.data.raisedBy == request.auth.uid) || isSecurity() || isAdmin();
+        allow delete: if isAdmin();
+      }
+      
+      // ==================== BOOKINGS ====================
+      match /bookings/{bookingId} {
+        allow read: if isAuthenticated();
+        allow create: if isResident();
+        allow update: if (resource.data.bookedBy == request.auth.uid) || isAdmin();
+        allow delete: if isAdmin();
+      }
+      
+      // ==================== ANNOUNCEMENTS ====================
+      match /announcements/{announcementId} {
+        allow read: if isAuthenticated();
         allow write: if isAdmin();
       }
       
+      // ==================== PAYMENTS ====================
       match /payments/{paymentId} {
-        allow read: if isAuthenticated() && (
-          isAdmin() ||
-          (isResident() && resource.data.flatId in 
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.flatId)
-        );
+        allow read: if isAuthenticated();
         allow write: if isAdmin();
       }
-      
-      // Emergency subcollection
-      match /emergency/{emergencyId} {
-        allow read: if isAuthenticated() && (
-          isAdmin() ||
-          isSecurity() ||
-          resource.data.raisedByUid == request.auth.uid
-        );
-        
-        allow create: if isAuthenticated() && isSocietyMember(societyId);
-        
-        allow update: if isAdmin() || isSecurity();
-      }
     }
     
-    // Cloud Functions logs (read-only for admins)
-    match /logs/{logId} {
-      allow read: if isAdmin();
-      allow write: if false; // Only Cloud Functions can write
-    }
-    
-    // Audit logs collection
-    match /audit_logs/{logId} {
-      allow read: if isAdmin();
-      allow write: if false; // Only Cloud Functions can write
+    // ==================== USERS ====================
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if true;
+      allow update: if (request.auth.uid == userId) || isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }
