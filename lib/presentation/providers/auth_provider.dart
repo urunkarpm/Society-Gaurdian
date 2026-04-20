@@ -227,8 +227,8 @@ class AuthService {
       final user = currentUser;
       if (user == null) return null;
       
-      await user.getIdTokenResult(true);
-      return user.claims;
+      final result = await user.getIdTokenResult(true);
+      return result.claims;
     } catch (e, stackTrace) {
       Logger.error('Get custom claims failed', error: e, stackTrace: stackTrace, tag: 'AuthService');
       return null;

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -32,10 +34,10 @@ final fcmTokenProvider = StreamProvider<String?>((ref) async* {
     yield token;
     
     // Listen for token refresh
-    messaging.onTokenRefresh.listen((newToken) {
+    await for (final newToken in messaging.onTokenRefresh) {
       Logger.log('FCM token refreshed', tag: 'NotificationProvider');
       yield newToken;
-    });
+    }
   } else {
     Logger.warning('User denied notification permission', tag: 'NotificationProvider');
     yield null;
@@ -72,7 +74,7 @@ class NotificationService {
       );
 
       await _localNotifications.initialize(
-        settings,
+        settings: settings,
         onDidReceiveNotificationResponse: _onNotificationTapped,
         onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTapped,
       );
@@ -129,7 +131,7 @@ class NotificationService {
         id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
         title: notification.title ?? 'Notification',
         body: notification.body ?? '',
-        payload: data.isNotEmpty ? JSON.encode(data) : null,
+        payload: data.isNotEmpty ? jsonEncode(data) : null,
         type: data['type'] ?? 'general',
       );
     }
@@ -179,10 +181,10 @@ class NotificationService {
       );
 
       await _localNotifications.show(
-        id,
-        title,
-        body,
-        details,
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: details,
         payload: payload,
       );
 
@@ -197,7 +199,7 @@ class NotificationService {
   void _onNotificationTapped(NotificationResponse response) {
     Logger.log('Notification tapped', tag: 'NotificationService');
     if (response.payload != null) {
-      final data = JSON.decode(response.payload!) as Map<String, dynamic>;
+      final data = jsonDecode(response.payload!) as Map<String, dynamic>;
       _navigateToScreen(data);
     }
   }

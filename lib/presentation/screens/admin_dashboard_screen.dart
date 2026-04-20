@@ -311,7 +311,7 @@ class _SecurityGuardsManagementState extends ConsumerState<_SecurityGuardsManage
         title: const Text('Security Guards Management'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_person),
+            icon: const Icon(Icons.person_add),
             onPressed: _showAddGuardDialog,
             tooltip: 'Add Security Guard',
           ),
@@ -433,7 +433,7 @@ class _SecurityGuardsManagementState extends ConsumerState<_SecurityGuardsManage
                               Text(phone),
                             if (assignedAt != null)
                               Text(
-                                'Added: ${assignedAt.toDate().toLocaleDateString()}',
+                                'Added: ${assignedAt.toDate().toString().split(' ')[0]}',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                           ],

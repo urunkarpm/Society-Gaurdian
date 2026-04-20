@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'flat_entity.freezed.dart';
@@ -103,8 +104,8 @@ class AmenityEntity with _$AmenityEntity {
     String? type, // clubhouse, pool, gym, tennis, etc.
     String? imageUrl,
     int? capacity,
-    TimeOfDay? openingTime,
-    TimeOfDay? closingTime,
+    @JsonKey(includeFromJson: false, includeToJson: false) TimeOfDay? openingTime,
+    @JsonKey(includeFromJson: false, includeToJson: false) TimeOfDay? closingTime,
     List<int>? availableDays, // 0=Sunday, 1=Monday, etc.
     bool? requiresBooking,
     bool? requiresDeposit,

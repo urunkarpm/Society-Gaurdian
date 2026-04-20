@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'notification_entity.freezed.dart';
@@ -54,7 +55,7 @@ class ComplaintEntity with _$ComplaintEntity {
     List<String>? videos,
     String? location,
     String? preferredDate,
-    TimeOfDay? preferredTime,
+    @JsonKey(includeFromJson: false, includeToJson: false) TimeOfDay? preferredTime,
     @Default('open') String status, // open, in_progress, resolved, closed
     String? assignedTo,
     String? assignedToName,

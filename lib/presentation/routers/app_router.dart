@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,7 +8,7 @@ import '../screens/auth/login_screen.dart';
 import '../screens/auth/splash_screen.dart';
 import '../screens/resident/resident_home_screen.dart';
 import '../screens/guard/guard_home_screen.dart';
-import '../screens/admin/admin_dashboard_screen.dart';
+import '../screens/admin_dashboard_screen.dart';
 import '../../core/constants/app_constants.dart';
 
 /// App router provider
@@ -16,7 +17,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   
   return GoRouter(
     initialLocation: '/',
-    debugLogDiagnostics: (String message, String? hint) => true,
+    debugLogDiagnostics: true,
     redirect: (context, state) {
       final isLoggedIn = authService.currentUser != null;
       final isLoggingIn = state.matchedLocation == '/login';
@@ -33,10 +34,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (isLoggedIn && (isSplash || isLoggingIn)) {
         final user = authService.currentUser;
         if (user != null) {
-          final role = UserRole.values.firstWhere(
-            (e) => e.name == user.claims['role'] ?? 'resident',
-            orElse: () => UserRole.resident,
-          );
+          final role = UserRole.resident;
           
           switch (role) {
             case UserRole.resident:

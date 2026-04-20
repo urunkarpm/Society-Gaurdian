@@ -14,7 +14,5 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
-    
-    <!-- Notification accent color -->
-    <color name="notification_color">#4285F4</color>
+
 </resources>

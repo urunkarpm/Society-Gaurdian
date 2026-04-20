@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/logger.dart';
 import '../../../domain/entities/visitor_entity.dart';
+import '../../providers/auth_provider.dart';
 
 /// Guard Home Screen - Main interface for security personnel
 class GuardHomeScreen extends ConsumerStatefulWidget {
@@ -244,7 +245,7 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Icon(
-                          Icons.camera_alt_off,
+                          Icons.no_photography,
                           size: 64,
                           color: Colors.white70,
                         ),
@@ -372,7 +373,7 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
                     value: _selectedGate,
                     decoration: const InputDecoration(
                       labelText: 'Gate',
-                      prefixIcon: Icon(Icons.door_door),
+                      prefixIcon: Icon(Icons.door_front_door),
                     ),
                     items: [
                       AppConstants.gateMain,

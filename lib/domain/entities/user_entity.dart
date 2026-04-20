@@ -50,7 +50,7 @@ class ResidentProfile with _$ResidentProfile {
     String? email,
     String? photoUrl,
     @Default(['resident']) List<String> roles,
-    bool isPrimaryContact,
+    @Default(false) bool isPrimaryContact,
     List<String>? familyMemberUids,
     String? vehicleNumber,
     String? emergencyContactName,
