@@ -1,0 +1,24 @@
+# Gradle
+.gradle/
+*.log
+
+# Miscellaneous
+*.class
+*.lock
+*.pack
+*~
+.swp
+
+# IntelliJ
+*.iml
+.idea/
+*.iws
+
+# VS Code
+.vscode/
+
+# Android Studio
+captures/
+
+# Firebase
+google-services.json
