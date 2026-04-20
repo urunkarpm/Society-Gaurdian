@@ -1,0 +1,87 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isSocietyMember(societyId) {
+      let user = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+      return user.societyId == societyId;
+    }
+    
+    function isSecurity() {
+      let user = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+      return user.role == 'security';
+    }
+    
+    function isAdmin() {
+      let user = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+      return user.role == 'admin';
+    }
+    
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*') &&
+             request.resource.size < 5 * 1024 * 1024; // 5MB max
+    }
+    
+    function isValidVideo() {
+      return request.resource.contentType.matches('video/.*') &&
+             request.resource.size < 50 * 1024 * 1024; // 50MB max
+    }
+    
+    // Visitor photos
+    match /visitor_photos/{photoId} {
+      allow read: if isAuthenticated();
+      allow write: if isSecurity() && isValidImage();
+    }
+    
+    // Complaint photos and videos
+    match /complaint_photos/{photoId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidImage();
+    }
+    
+    match /complaint_videos/{videoId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidVideo();
+    }
+    
+    // Profile photos
+    match /profile_photos/{userId}/{photoId} {
+      allow read: if isAuthenticated();
+      allow write: if request.auth.uid == userId && isValidImage();
+    }
+    
+    // Documents (invoices, receipts, etc.)
+    match /documents/{societyId}/{documentId} {
+      allow read: if isAuthenticated() && isSocietyMember(societyId);
+      allow write: if isAdmin();
+    }
+    
+    // Amenity photos
+    match /amenity_photos/{amenityId}/{photoId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Announcement images
+    match /announcement_images/{announcementId}/{imageId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Package/delivery photos
+    match /package_photos/{packageId}/{photoId} {
+      allow read: if isAuthenticated();
+      allow write: if isSecurity() && isValidImage();
+    }
+    
+    // Catch-all for other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
