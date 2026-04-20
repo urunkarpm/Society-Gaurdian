@@ -1,0 +1,48 @@
+```
+# Dependencies
+.dart_tool/
+.packages
+.pub/
+
+# Build
+build/
+**/ios/.generated/
+**/android/.generated/
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Logs
+*.log
+**/logs
+
+# OS generated files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+**/Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Distribution
+dist/
+bin/cache/
+
+# Flutter
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+```

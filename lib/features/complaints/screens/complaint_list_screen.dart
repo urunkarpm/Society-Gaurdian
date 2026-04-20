@@ -1,0 +1,13 @@
+import 'package:flutter/material.dart';
+
+class ComplaintListScreen extends StatelessWidget {
+  const ComplaintListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Complaints')),
+      body: const Center(child: Text('Complaints List')),
+    );
+  }
+}
