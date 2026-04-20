@@ -12,12 +12,15 @@ import 'presentation/routers/app_router.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/notification_provider.dart';
 import 'core/utils/logger.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Initialize Firebase
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   
   // Enable Firestore offline persistence
   FirebaseFirestore.instance.settings = const Settings(
