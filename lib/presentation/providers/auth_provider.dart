@@ -11,13 +11,17 @@ import '../../core/utils/logger.dart';
 class ActiveRoleNotifier extends StateNotifier<UserRole?> {
   ActiveRoleNotifier(UserRole? initialRole) : super(initialRole);
 
-  /// Toggle between admin and owner roles
+  /// Toggle between admin and owner roles (only for users who have both roles)
   void toggleRole() {
+    // Only allow toggle if state is not null
+    if (state == null) return;
+    
     if (state == UserRole.admin) {
       state = UserRole.owner;
     } else if (state == UserRole.owner) {
       state = UserRole.admin;
     }
+    // Don't allow toggling for other roles
   }
 
   /// Set active role explicitly

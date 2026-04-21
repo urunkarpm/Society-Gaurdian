@@ -9,17 +9,17 @@ service firebase.storage {
     
     function isSocietyMember(societyId) {
       let user = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
-      return user.societyId == societyId;
+      return user != null && user.societyId == societyId;
     }
     
     function isSecurity() {
       let user = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
-      return user.role == 'security';
+      return user != null && user.role == 'security';
     }
     
     function isAdmin() {
       let user = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
-      return user.role == 'admin';
+      return user != null && user.role == 'admin';
     }
     
     function isValidImage() {

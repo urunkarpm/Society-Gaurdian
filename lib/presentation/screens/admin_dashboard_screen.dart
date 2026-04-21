@@ -142,6 +142,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               .collection('notifications')
                               .where('type', isEqualTo: 'visitor_admin')
                               .where('isRead', isEqualTo: false)
+                              .where('societyId', isEqualTo: ref.watch(societyIdProvider))
                               .snapshots(),
                           builder: (context, snapshot) {
                             final count = snapshot.data?.docs.length ?? 0;
@@ -228,18 +229,42 @@ class _SecurityGuardsManagementState extends ConsumerState<_SecurityGuardsManage
     setState(() => _isAdding = true);
 
     try {
+      final societyId = ref.read(societyIdProvider);
+      if (societyId == null) {
+        throw Exception('No society selected');
+      }
+
       // Create Firebase Auth user
       final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      // Create user document with security role
+      // Create security guard document in society subcollection
+      await FirebaseFirestore.instance
+          .collection('societies')
+          .doc(societyId)
+          .collection('security_guards')
+          .doc(credential.user!.uid)
+          .set({
+        'email': _emailController.text.trim(),
+        'displayName': _nameController.text.trim(),
+        'phoneNumber': _phoneController.text.trim(),
+        'role': 'security',
+        'societyId': societyId,
+        'assignedBy': FirebaseAuth.instance.currentUser!.uid,
+        'assignedAt': FieldValue.serverTimestamp(),
+        'isActive': true,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Also create user document for authentication
       await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).set({
         'email': _emailController.text.trim(),
         'displayName': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
+        'phoneNumber': _phoneController.text.trim(),
         'role': 'security',
+        'societyId': societyId,
         'assignedBy': FirebaseAuth.instance.currentUser!.uid,
         'assignedAt': FieldValue.serverTimestamp(),
         'isActive': true,
@@ -302,6 +327,18 @@ class _SecurityGuardsManagementState extends ConsumerState<_SecurityGuardsManage
     if (confirmed != true) return;
 
     try {
+      final societyId = ref.read(societyIdProvider);
+      
+      // Remove from society's security guards subcollection
+      if (societyId != null) {
+        await FirebaseFirestore.instance
+            .collection('societies')
+            .doc(societyId)
+            .collection('security_guards')
+            .doc(uid)
+            .delete();
+      }
+      
       // Update user role to 'resident' or mark as inactive
       await FirebaseFirestore.instance.collection('users').doc(uid).update({
         'role': 'resident',
@@ -415,6 +452,8 @@ class _SecurityGuardsManagementState extends ConsumerState<_SecurityGuardsManage
 
   @override
   Widget build(BuildContext context) {
+    final societyId = ref.watch(societyIdProvider);
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Security Guards Management'),
@@ -448,8 +487,9 @@ class _SecurityGuardsManagementState extends ConsumerState<_SecurityGuardsManage
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .where('role', isEqualTo: 'security')
+                  .collection('societies')
+                  .doc(societyId)
+                  .collection('security_guards')
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -508,7 +548,7 @@ class _SecurityGuardsManagementState extends ConsumerState<_SecurityGuardsManage
                     final uid = doc.id;
                     final name = data['displayName'] ?? 'Unknown';
                     final email = data['email'] ?? 'No email';
-                    final phone = data['phone'] ?? 'No phone';
+                    final phone = data['phoneNumber'] ?? data['phone'] ?? 'No phone';
                     final isActive = data['isActive'] ?? true;
                     final assignedAt = data['assignedAt'] as Timestamp?;
 
