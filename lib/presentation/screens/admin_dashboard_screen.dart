@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
+import 'admin/admin_inventory_screen.dart';
+
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
 
@@ -18,6 +20,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     const _SecurityGuardsManagement(),
     const _ResidentsManagement(),
     const _SocietyOverview(),
+    const AdminInventoryScreen(),
   ];
 
   @override
@@ -54,6 +57,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 icon: Icon(Icons.dashboard_outlined),
                 selectedIcon: Icon(Icons.dashboard),
                 label: Text('Overview'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.inventory_2_outlined),
+                selectedIcon: Icon(Icons.inventory_2),
+                label: Text('Inventory'),
               ),
             ],
             trailing: Expanded(
