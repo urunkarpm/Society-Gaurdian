@@ -1,7 +1,7 @@
 # Society Guardian - Development Guide
 
 ## Project Overview
-Society Guardian is a modern Residential Society Management App built with Flutter 3.x+ and Firebase, featuring automated visitor tracking and real-time notifications.
+Society Guardian is a modern Residential Society Management App built with Flutter 3.x+ and Firebase, featuring automated visitor tracking, inventory management, residence verification, and real-time notifications with multi-role support (Resident, Security, Admin, Owner).
 
 ## Architecture
 
@@ -168,9 +168,30 @@ flutter test --coverage
 2. App captures photo and optional license plate
 3. Writes to Firestore `/societies/{id}/visitors/{id}`
 4. Cloud Function triggers on create
-5. Function resolves flat members and sends FCM
-6. Residents receive push with deep link
-7. Resident approves/rejects via app
+5. Function resolves flat members and admin/owner FCM tokens
+6. Sends dual notifications: resident notification (`type: 'visitor'`) and admin notification (`type: 'visitor_admin'`)
+7. Residents and admins receive push with deep link
+8. Resident approves/rejects via app
+9. Admin can monitor visitor activity via notification badge
+
+### Residence Verification Flow
+1. User submits verification request with documents (ownership proof, ID)
+2. Request stored in `/residence_verifications/{id}`
+3. Admin reviews in `AdminVerificationsScreen`
+4. On approval: user role updated to `resident`, society/flat assigned
+5. On rejection: reason recorded, user notified
+
+### Inventory Management Flow
+1. Admin adds items to `/inventory_items/{id}` with category, type (consumable/durable), quantity
+2. Usage logged in `/inventory_transactions/{txId}` with photos and location
+3. Consumables tracked against minimum threshold
+4. Transaction history provides audit trail
+
+### Role Toggle System (Admin/Owner)
+1. Users with both admin and owner roles have `isOwner: true` flag
+2. `ActiveRoleNotifier` manages current active role state
+3. UI shows role badge and toggle button in admin dashboard
+4. Cloud Functions check `isAdminMode` for notification routing
 
 ### Offline Strategy
 - Firestore offline persistence enabled

@@ -1,27 +1,27 @@
 # 🏢 Society Guardian - Residential Society Management App
 
-A production-ready, real-time residential society management solution built with **Flutter 3.x**, **Firebase**, and **Material 3**. Designed for modern housing societies to automate visitor tracking, manage amenities, handle billing, and ensure community security.
+A production-ready, real-time residential society management solution built with **Flutter 3.x**, **Firebase**, and **Material 3**. Designed for modern housing societies to automate visitor tracking, manage inventory, handle residence verification, and ensure community security.
 
 ## 🚀 Key Features
 
 ### 🔐 Multi-Role Authentication
 - **Residents**: Secure Google Sign-In with biometric fallback
 - **Security Guards**: Email/Password auth (credentials assigned by Admin)
-- **Admins**: Full dashboard access with custom claims
-- **Vendors**: Scoped access for service providers
+- **Admins**: Full dashboard access with custom claims, role toggle support for owners
+- **Owners**: Special role with ability to toggle into admin mode for oversight
 
 ### 👮 Automated Visitor Management
 - **Real-Time Tracking**: Guards scan QR/NFC or enter visitor details manually
-- **Instant Notifications**: Residents receive FCM push notifications immediately upon visitor arrival
+- **Instant Notifications**: Residents and admins receive FCM push notifications immediately upon visitor arrival
 - **Pre-Approval System**: Residents generate shareable QR codes for expected guests
-- **Delivery Tracking**: Package handoff confirmation with photo proof
+- **Dual Notification System**: Separate notification streams for residents and admin/owners
 - **Auto-Expiry**: Cloud Functions automatically expire pending visitors after set duration
 
 ### 🏠 Resident Portal
 - **Visitor History**: View all past and current visitors
-- **Amenity Booking**: Real-time slot booking for gym, pool, clubhouse (atomic transactions prevent double-booking)
-- **Billing & Payments**: View invoices, pay via Stripe/Razorpay, auto-pay scheduling
-- **Complaints**: Raise tickets with photo/video evidence, track status in real-time
+- **Residence Verification**: Submit documents for verification, track approval status
+- **Society Selection**: Join or request access to residential societies
+- **Waiting Approval**: Screen for users awaiting admin verification
 - **Notice Board**: Society-wide announcements with read receipts
 - **Emergency SOS**: One-tap alert to security and admins with location
 
@@ -30,13 +30,17 @@ A production-ready, real-time residential society management solution built with
 - **Offline Mode**: Queue writes locally when network drops, sync automatically
 - **Patrol Logs**: Digital check-in/check-out with timestamps
 - **Visitor Directory**: Search and verify visitor details instantly
+- **History Tracking**: Real-time visitor log with status chips and search
 
 ### 👑 Admin Command Center
 - **User Management**: Add/Remove security guards, assign roles, manage residents
+- **Residence Verifications**: Review and approve/reject resident verification requests with reasons
+- **Inventory Management**: Full control over society inventory with categories, transactions, and photo evidence
 - **Real-Time Analytics**: Live metrics on occupancy, visitor traffic, revenue
 - **Financial Oversight**: Track collections, pending dues, expense reports
 - **Society Configuration**: Manage buildings, flats, amenities, and rules
 - **Audit Logs**: Complete history of critical actions
+- **Role Toggle**: Admin/Owner users can switch between roles seamlessly
 
 ## 🏗️ Architecture
 
@@ -45,10 +49,10 @@ lib/
 ├── core/                    # Shared utilities, constants, theme
 │   ├── constants/           # App-wide constants
 │   ├── theme/               # Material 3 theme configuration
-│   ├── utils/               # Helper functions
+│   ├── utils/               # Helper functions (logger, etc.)
 │   └── errors/              # Custom error classes
 ├── domain/                  # Business logic layer
-│   ├── entities/            # Freezed data models
+│   ├── entities/            # Freezed data models (User, Flat, Visitor, Notification, InventoryItem)
 │   ├── repositories/        # Repository interfaces
 │   └── usecases/            # Business use cases
 ├── data/                    # Data layer
@@ -56,9 +60,9 @@ lib/
 │   ├── models/              # Serializable models
 │   └── repositories/        # Repository implementations
 └── presentation/            # UI layer
-    ├── providers/           # Riverpod state management
-    ├── routers/             # GoRouter configuration
-    └── screens/             # Feature screens
+    ├── providers/           # Riverpod state management (auth, notifications, role toggle)
+    ├── routers/             # GoRouter configuration with role-based guards
+    └── screens/             # Feature screens (Admin, Guard, Resident, Auth)
 ```
 
 ## 📦 Tech Stack
@@ -105,7 +109,7 @@ lib/
 ### Visitor Flow
 1. **Arrival**: Guard scans visitor ID or enters details in app.
 2. **Trigger**: App writes to Firestore `visitors` collection.
-3. **Notification**: Cloud Function detects write, resolves flat owner's FCM token, sends push notification.
+3. **Notification**: Cloud Function detects write, resolves flat owner's and admin/owner FCM tokens, sends push notifications.
 4. **Action**: Resident receives alert with photo/name, can approve/reject or call guard.
 5. **Entry**: Guard marks "Entered", system logs timestamp.
 
@@ -115,6 +119,24 @@ lib/
 3. Clicks "Add Guard", enters email and assigns device.
 4. System creates user with `role: security` claim.
 5. Guard receives credentials, logs in via Email/Password.
+
+### Residence Verification Flow
+1. **Registration**: User signs up and submits verification request with documents (ownership proof, ID, etc.).
+2. **Review**: Admin receives notification and reviews request in **Residence Verifications** screen.
+3. **Decision**: Admin approves (assigns flat/society) or rejects with reason.
+4. **Access**: Upon approval, user gains resident access to society features.
+
+### Inventory Management Flow
+1. **Track Items**: Admin adds inventory items (consumables like bulbs, durables like tools).
+2. **Record Usage**: When item is used, admin logs transaction with quantity, location, and photos.
+3. **Alerts**: System alerts when consumables reach minimum threshold.
+4. **History**: Complete audit trail of all inventory movements.
+
+### Role Toggle (Admin/Owner)
+1. **Eligibility**: Users with both admin and owner roles can toggle.
+2. **Switch Mode**: Click swap icon in navigation rail to switch between admin and owner modes.
+3. **Notifications**: In admin mode, receive visitor notifications for oversight.
+4. **Badge**: Red notification badge shows unread visitor alerts count.
 
 ## 🛠️ Setup Instructions
 
@@ -203,24 +225,26 @@ flutter run
 ### Resident Interface
 - **Home Dashboard**: Quick actions, recent notifications, and visitor alerts
 - **Visitors**: Pre-approve guests, view history, generate shareable QR codes
-- **Complaints**: Raise and track maintenance requests with photo evidence
-- **Bookings**: Reserve amenities with real-time availability
-- **Payments**: View invoices, pay via Stripe/Razorpay, download receipts
+- **Society Selection**: Choose or request access to residential societies
+- **Waiting Approval**: Screen for users awaiting residence verification
 - **Profile**: Manage family members, update contact info
 
 ### Admin Dashboard
 - **Overview**: Real-time analytics on occupancy, visitor traffic, revenue
 - **Security Management**: Add/remove guards, assign roles, view patrol logs
 - **User Management**: Manage residents, vendors, and staff accounts
+- **Residence Verifications**: Review and approve/reject resident verification requests
+- **Inventory Management**: Track consumables and durable items with transaction history
 - **Financial Reports**: Track collections, pending dues, expense reports
 - **Society Settings**: Configure buildings, flats, amenities, rules
 - **Audit Logs**: Complete history of critical system actions
+- **Role Toggle**: Switch between admin and owner modes (for eligible users)
 
 ## ☁️ Cloud Functions
 
 | Function | Trigger | Description |
 |----------|---------|-------------|
-| `onVisitorCreate` | Firestore onCreate | Sends FCM push notification to flat residents when visitor arrives |
+| `onVisitorCreate` | Firestore onCreate | Sends FCM push notification to flat residents and admins/owners when visitor arrives |
 | `expirePendingVisitors` | Pub/Sub (hourly) | Auto-expires pending visitors after 24 hours |
 | `sendScheduledNotifications` | Pub/Sub (daily 8 AM) | Sends booking reminders and payment due alerts |
 | `processPaymentWebhook` | HTTPS POST | Handles Stripe/Razorpay payment callbacks |
@@ -242,8 +266,11 @@ flutter run
   /amenities/{amenityId}
   /patrol_logs/{logId}
   /audit_logs/{logId}
+  /inventory_items/{itemId}    # Name, category, type, quantity, status, photos
+  /inventory_transactions/{txId} # Item changes with evidence photos and reasons
+  /residence_verifications/{id} # Verification requests with documents and status
 
-/users/{userId}                # Profile, role, custom claims
+/users/{userId}                # Profile, role, custom claims, isOwner, isAdminMode
 /security_staff/{staffId}      # Guard credentials assigned by admin
 ```
 
