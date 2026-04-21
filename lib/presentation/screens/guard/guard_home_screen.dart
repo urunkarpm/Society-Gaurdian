@@ -9,6 +9,7 @@ import 'dart:io';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/logger.dart';
+import '../../../core/utils/ocr_service.dart';
 import '../../../domain/entities/visitor_entity.dart';
 import '../../providers/auth_provider.dart';
 
@@ -27,6 +28,7 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
   bool _isScanning = false;
   final ImagePicker _imagePicker = ImagePicker();
   
+  final OcrService _ocrService = OcrService();
   // Form controllers
   final _visitorNameController = TextEditingController();
   final _visitorPhoneController = TextEditingController();
@@ -52,6 +54,7 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
     _flatNumberController.dispose();
     _vehicleNumberController.dispose();
     super.dispose();
+    _ocrService.dispose();
   }
 
   Future<void> _registerVisitor() async {
@@ -170,6 +173,231 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
     }
   }
 
+  /// Scan package address and verify if it belongs to this society
+  Future<void> _scanPackageAddress() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+
+    final societyId = ref.read(societyIdProvider);
+    if (societyId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Society not found')),
+      );
+      return;
+    }
+
+    // Get society name from Firestore
+    String societyName = '';
+    try {
+      final societyDoc = await FirebaseFirestore.instance
+          .collection(AppConstants.societiesCollection)
+          .doc(societyId)
+          .get();
+      
+      if (societyDoc.exists) {
+        societyName = societyDoc.data()?['name'] ?? '';
+      }
+    } catch (e) {
+      Logger.error('Failed to get society name', error: e, tag: 'GuardHomeScreen');
+    }
+
+    if (societyName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not retrieve society name')),
+      );
+      return;
+    }
+
+    try {
+      setState(() => _isScanning = true);
+
+      // Use OCR service to scan and verify package
+      final result = await _ocrService.verifyPackageForSociety(
+        societyName: societyName,
+        societyId: societyId,
+      );
+
+      setState(() => _isScanning = false);
+
+      // Show verification result dialog
+      _showVerificationResult(result, societyName);
+
+    } catch (e, stackTrace) {
+      setState(() => _isScanning = false);
+      Logger.error('Failed to scan package', 
+          error: e, stackTrace: stackTrace, tag: 'GuardHomeScreen');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Scan failed: ${e.toString()}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Show verification result dialog
+  void _showVerificationResult(
+    PackageVerificationResult result, 
+    String societyName,
+  ) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        icon: Icon(
+          result.verified ? Icons.check_circle : Icons.warning,
+          color: result.verified ? AppTheme.successColor : AppTheme.warningColor,
+          size: 64,
+        ),
+        title: Text(
+          result.verified ? 'Package Verified' : 'Verification Failed',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: result.verified ? AppTheme.successColor : AppTheme.warningColor,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                result.message,
+                style: const TextStyle(fontSize: 16),
+              ),
+              if (result.suggestedAction != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.amber.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          result.suggestedAction!,
+                          style: TextStyle(color: Colors.amber.shade700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (result.confidence != null) ...[
+                const SizedBox(height: 16),
+                LinearProgressIndicator(
+                  value: result.confidence,
+                  backgroundColor: Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    result.confidence! > 0.7 
+                        ? AppTheme.successColor 
+                        : result.confidence! > 0.4 
+                            ? AppTheme.warningColor 
+                            : AppTheme.errorColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Confidence: ${(result.confidence! * 100).toStringAsFixed(1)}%',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+              if (result.ocrResult.fullAddress != null && result.ocrResult.fullAddress!.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                const Text(
+                  'Detected Address:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  result.ocrResult.fullAddress!,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+              if (result.ocrResult.pincode != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Pincode: ${result.ocrResult.pincode}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          if (!result.verified)
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _scanPackageAddress(); // Retry
+              },
+              child: const Text('Retry'),
+            ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Optionally save the package info even if verification failed
+              if (result.verified) {
+                _savePackageInfo(result);
+              }
+            },
+            child: Text(result.verified ? 'Accept Package' : 'Skip'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Save package information to Firestore
+  Future<void> _savePackageInfo(PackageVerificationResult result) async {
+    try {
+      final societyId = ref.read(societyIdProvider);
+      if (societyId == null) return;
+
+      final packageData = {
+        'societyId': societyId,
+        'address': result.ocrResult.fullAddress,
+        'pincode': result.ocrResult.pincode,
+        'societyVerified': result.verified,
+        'verificationConfidence': result.confidence,
+        'scannedAt': FieldValue.serverTimestamp(),
+        'scannedBy': ref.read(currentUserProvider)?.uid,
+        'ocrRawText': result.ocrResult.detectedText,
+      };
+
+      final docRef = await FirebaseFirestore.instance
+          .collection(AppConstants.societiesCollection)
+          .doc(societyId)
+          .collection('packages')
+          .add(packageData);
+
+      Logger.firestore('create', 'packages', 
+          docId: docRef.id, data: packageData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Package information saved successfully!'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      Logger.error('Failed to save package info', 
+          error: e, stackTrace: stackTrace, tag: 'GuardHomeScreen');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -275,6 +503,23 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
             },
             icon: const Icon(Icons.edit),
             label: const Text('Manual Entry'),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _isScanning ? null : _scanPackageAddress,
+            icon: _isScanning
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.camera_alt),
+            label: const Text('Scan Package Address'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
           ),
         ],
       ),
