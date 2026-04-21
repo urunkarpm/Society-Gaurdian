@@ -87,6 +87,19 @@ service cloud.firestore {
         allow read: if isAuthenticated();
         allow write: if isAdmin();
       }
+      
+      // ==================== INVENTORY ====================
+      match /inventory/{itemId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAdmin();
+      }
+      
+      // ==================== INVENTORY TRANSACTIONS ====================
+      match /inventory_transactions/{transactionId} {
+        allow read: if isAuthenticated();
+        allow create: if isSecurity() || isAdmin();
+        allow update, delete: if isAdmin();
+      }
     }
     
     // ==================== USERS ====================
