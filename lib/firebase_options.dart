@@ -43,6 +43,21 @@ class DefaultFirebaseOptions {
 
   // TODO: Replace these with your actual Firebase project configuration
   // You can get these from https://console.firebase.google.com/
+  // 
+  // IMPORTANT: The white blank screen issue is caused by these placeholder values.
+  // You MUST replace them with your actual Firebase project credentials.
+  // 
+  // Steps to fix:
+  // 1. Go to https://console.firebase.google.com/
+  // 2. Select your project (or create a new one)
+  // 3. Go to Project Settings > General
+  // 4. Scroll down to "Your apps" and register an Android app if not already done
+  // 5. Download the google-services.json file
+  // 6. Copy the values from that file or from the Firebase console to replace the placeholders below
+  // 
+  // Alternatively, run: flutterfire configure
+  // This will automatically generate the correct firebase_options.dart file
+  
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'YOUR_WEB_API_KEY',
     appId: '1:YOUR_APP_ID:web:YOUR_WEB_APP_ID',

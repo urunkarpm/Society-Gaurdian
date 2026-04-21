@@ -18,30 +18,43 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
-  // Enable Firestore offline persistence
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-  );
-  
-  // Initialize Firebase App Check
   try {
-    await FirebaseAppCheck.instance.activate(
-      androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-      appleProvider: AppleProvider.appAttest,
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
     );
+    
+    // Enable Firestore offline persistence
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    
+    // Initialize Firebase App Check
+    try {
+      await FirebaseAppCheck.instance.activate(
+        androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+        appleProvider: AppleProvider.appAttest,
+      );
+    } catch (e) {
+      Logger.warning('App Check activation failed: $e', tag: 'Main');
+    }
   } catch (e) {
-    Logger.warning('App Check activation failed: $e', tag: 'Main');
+    // Firebase initialization failed - likely due to invalid credentials
+    print('❌ Firebase initialization failed: $e');
+    print('⚠️  Make sure you have configured Firebase correctly:');
+    print('   1. Run: flutterfire configure');
+    print('   2. Or manually update lib/firebase_options.dart with your Firebase credentials');
+    print('   3. For Android, also add google-services.json to android/app/');
   }
   
   // Initialize Hive for local caching
-  await Hive.initFlutter();
-  await Hive.openBox('sync_queue');
-  await Hive.openBox('cache');
+  try {
+    await Hive.initFlutter();
+    await Hive.openBox('sync_queue');
+    await Hive.openBox('cache');
+  } catch (e) {
+    print('⚠️  Hive initialization warning: $e');
+  }
   
   // Initialize Crashlytics and Analytics in debug mode
   if (kDebugMode) {
