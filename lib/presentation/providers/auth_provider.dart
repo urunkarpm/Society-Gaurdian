@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in/google_sign_in.dart' as google;
 
 import '../../domain/entities/user_entity.dart';
 import '../../core/constants/app_constants.dart';
@@ -177,7 +177,9 @@ final authServiceProviders = Provider<AuthService>((ref) {
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
+  late final google.GoogleSignIn _googleSignIn;
+
+  AuthService() : _googleSignIn = google.GoogleSignIn(
     scopes: ['email', 'profile'],
   );
 
@@ -190,13 +192,13 @@ class AuthService {
       Logger.log('Signing in with Google', tag: 'AuthService');
       
       // Trigger the Google sign-in flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      final google.GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         throw Exception('Google sign-in was cancelled');
       }
 
       // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final google.GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
       // Create a new credential
       final credential = GoogleAuthProvider.credential(
