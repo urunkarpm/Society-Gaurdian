@@ -4,6 +4,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import 'dart:io';
 
 import '../../../core/theme/app_theme.dart';
@@ -178,8 +180,11 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () {
-              // TODO: Implement logout
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (mounted) {
+                context.go('/');
+              }
             },
           ),
         ],

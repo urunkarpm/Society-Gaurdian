@@ -240,6 +240,8 @@ export const expirePendingVisitors = functions.pubsub
       
     } catch (error) {
       console.error('Error expiring visitors:', error);
+      // Re-throw to ensure Cloud Functions logs the error properly
+      throw error;
     }
   });
 

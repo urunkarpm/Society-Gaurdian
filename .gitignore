@@ -1,90 +1,93 @@
 ```
 # Dependencies
-.dart_tool/
-.build/
-.packages
+node_modules/
+vendor/
 
-# Logs and temp files
+# Build outputs
+build/
+dist/
+target/
+.DS_Store
+
+# Logs
 *.log
-*.tmp
 
-# Environment
+# Environment variables
 .env
 .env.local
 *.env.*
 
-# Coverage
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python specific
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Dart/Flutter specific
+.dart_tool/
+.packages
+.pub/
+build/
+*.g.dart
+*.freezed.dart
+
+# Temporary files
+*.tmp
+*.temp
+*~
+.DS_Store
+Thumbs.db
+
+# Coverage reports
 coverage/
-*.lcov
+htmlcov/
+.coverage
 
-# iOS
-ios/Pods/
-ios/.symlinks/
-ios/build/
+# MyPy cache
+.mypy_cache/
+.dmypy.json
+dmypy.json
 
-# Android
-android/.gradle/
-android/build/
-android/app/build/
+# PyTest cache
+.pytest_cache/
 
-# Flutter
-**/pubspec.lock
-**/pubspec_overrides.yaml
-**/packages/
-**/bin/cache/
-**/bin/internal/shared.dart
-**/dev/tools/**
-**/examples/**/pubspec.lock
-**/test/**/packages/
-**/tool/.packages
-**/tool/env_set.sh
-**/windows/Flutter/flutter_windows.dll
-**/windows/Flutter/flutter_windows.dll.exp
-**/windows/Flutter/flutter_windows.dll.lib
-**/windows/Flutter/flutter_windows.dll.pdb
-**/windows/runner/flutter_window.cpp
-**/windows/runner/flutter_window.h
-**/windows/runner/run_loop.cpp
-**/windows/runner/run_loop.h
-**/windows/runner/utils.cpp
-**/windows/runner/utils.h
-**/windows/runner/win32_window.cpp
-**/windows/runner/win32_window.h
-**/windows/runner/Main.cpp
-**/windows/runner/resource.h
-**/windows/runner/Runner.rc
-**/windows/runner/runner.exe.manifest
-**/windows/runner/runner.res
-**/windows/runner/Runner.exe
-**/windows/runner/Runner.exe.config
-**/windows/runner/Runner.exe.pdb
-**/windows/runner/flutter_assets/
-**/windows/runner/data/
-**/windows/runner/flutter_window.obj
-**/windows/runner/flutter_window.i
-**/windows/runner/run_loop.obj
-**/windows/runner/run_loop.i
-**/windows/runner/utils.obj
-**/windows/runner/utils.i
-**/windows/runner/win32_window.obj
-**/windows/runner/win32_window.i
-**/windows/runner/Main.obj
-**/windows/runner/Main.i
-**/linux/flutter/generated_plugins.cmake
-**/linux/flutter/ephemeral/
-**/linux/out/
-**/linux/x64/
-**/macos/Flutter/ephemeral/
-**/macos/Flutter/flutter_assets/
-**/macos/Flutter/App.framework/
-**/macos/Flutter/Flutter.framework/
-**/macos/Flutter/FlutterPluginRegistrant/
-**/macos/Flutter/Generated.xcconfig
-**/macos/Flutter/ephemeral.properties
-**/macos/build/
-**/macos/Runner.app/
-**/macos/Runner.xcodeproj/
-**/macos/Runner.xcworkspace/
-**/macos/Pods/
-**/macos/.symlinks/
+# Gradle
+.gradle/
+build/
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```

@@ -55,7 +55,9 @@ service cloud.firestore {
       // ==================== NOTIFICATIONS ====================
       match /notifications/{notificationId} {
         allow read: if isAuthenticated();
-        allow create: if isAdmin() || isSecurity();
+        allow create: if isAdmin() || isSecurity() || 
+                         (request.auth != null && 
+                          request.resource.data.societyId == getUserSociety());
         allow update: if isAdmin();
         allow delete: if isAdmin();
       }

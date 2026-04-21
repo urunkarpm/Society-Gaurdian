@@ -21,7 +21,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     debugLogDiagnostics: true,
-    redirect: (context, state) {
+    redirect: (context, state) async {
       final isLoggedIn = authService.currentUser != null;
       final isLoggingIn = state.matchedLocation == '/login';
       final isSplash = state.matchedLocation == '/';
@@ -39,6 +39,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (isLoggedIn && (isSplash || isLoggingIn)) {
         final user = authService.currentUser;
         if (user != null) {
+          // Wait for provider to be ready
+          await Future.delayed(const Duration(milliseconds: 100));
           final role = ref.read(userRoleProvider);
 
           switch (role) {
