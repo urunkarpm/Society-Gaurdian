@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
 import 'admin/admin_inventory_screen.dart';
+import 'admin/admin_verifications_screen.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -18,6 +19,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   
   final List<Widget> _screens = [
     const _SecurityGuardsManagement(),
+    const AdminVerificationsScreen(), // Verifications tab
     const _ResidentsManagement(),
     const _SocietyOverview(),
     const AdminInventoryScreen(),
@@ -47,6 +49,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 icon: Icon(Icons.security_outlined),
                 selectedIcon: Icon(Icons.security),
                 label: Text('Security Guards'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.verified_user_outlined),
+                selectedIcon: Icon(Icons.verified_user),
+                label: Text('Verifications'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.people_outlined),

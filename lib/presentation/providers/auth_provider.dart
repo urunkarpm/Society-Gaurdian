@@ -24,6 +24,33 @@ final authStateProvider = StreamProvider<UserEntity?>((ref) {
     }
     
     final data = userDoc.data()!;
+    
+    // Check if user needs to complete residence verification
+    final verificationStatus = data['verificationStatus'];
+    final role = data['role'];
+    
+    // If user has no role or is pending verification, they should be treated as unverified resident
+    if (role == null || verificationStatus == 'pending') {
+      // User needs to select residence or wait for approval
+      return UserEntity(
+        uid: user.uid,
+        email: user.email ?? data['email'] ?? '',
+        phoneNumber: user.phoneNumber ?? data['phoneNumber'],
+        displayName: user.displayName ?? data['displayName'],
+        photoUrl: user.photoURL ?? data['photoUrl'],
+        role: UserRole.resident, // Temporary role for routing
+        societyId: data['societyId'],
+        flatId: data['flatId'],
+        isEmailVerified: user.emailVerified || data['isEmailVerified'] ?? false,
+        isPhoneVerified: user.phoneNumber != null || data['isPhoneVerified'] ?? false,
+        isActive: data['isActive'] ?? true,
+        createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+        updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+        lastLoginAt: (data['lastLoginAt'] as Timestamp?)?.toDate(),
+        metadata: {...data, 'verificationStatus': verificationStatus} as Map<String, dynamic>?,
+      );
+    }
+    
     return UserEntity(
       uid: user.uid,
       email: user.email ?? data['email'] ?? '',

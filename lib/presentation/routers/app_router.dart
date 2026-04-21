@@ -7,8 +7,11 @@ import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/splash_screen.dart';
 import '../screens/resident/resident_home_screen.dart';
+import '../screens/resident/society_selection_screen.dart';
+import '../screens/resident/waiting_approval_screen.dart';
 import '../screens/guard/guard_home_screen.dart';
 import '../screens/admin_dashboard_screen.dart';
+import '../screens/admin/admin_verifications_screen.dart';
 import '../../core/constants/app_constants.dart';
 
 /// App router provider
@@ -22,6 +25,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = authService.currentUser != null;
       final isLoggingIn = state.matchedLocation == '/login';
       final isSplash = state.matchedLocation == '/';
+      final isSelectingResidence = state.matchedLocation == '/select-residence';
+      final isWaitingApproval = state.matchedLocation == '/waiting-approval';
       
       if (isSplash) {
         return null; // Allow splash to load
@@ -64,6 +69,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const LoginScreen(),
       ),
       
+      // Society Selection route (for new residents)
+      GoRoute(
+        path: '/select-residence',
+        builder: (context, state) => const SocietySelectionScreen(),
+      ),
+      
+      // Waiting Approval route
+      GoRoute(
+        path: '/waiting-approval',
+        builder: (context, state) => const WaitingApprovalScreen(),
+      ),
+      
       // Resident routes
       GoRoute(
         path: '/resident/home',
@@ -104,6 +121,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/admin/dashboard',
         builder: (context, state) => const AdminDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/admin/verifications',
+        builder: (context, state) => const AdminVerificationsScreen(),
       ),
       GoRoute(
         path: '/admin/users',
