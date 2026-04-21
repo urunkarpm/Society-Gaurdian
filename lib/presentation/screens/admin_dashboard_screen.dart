@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../providers/auth_provider.dart';
 import 'admin/admin_inventory_screen.dart';
 import 'admin/admin_verifications_screen.dart';
 
@@ -27,6 +28,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canToggleRoles = ref.watch(canToggleRolesProvider);
+    final activeRole = ref.watch(activeRoleProvider);
+    final isOwner = ref.watch(isOwnerProvider);
+    
     return Scaffold(
       body: Row(
         children: [
@@ -36,13 +41,61 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             selectedIndex: _currentIndex,
             onDestinationSelected: (index) => setState(() => _currentIndex = index),
             labelType: NavigationRailLabelType.all,
-            leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Icon(
-                Icons.admin_panel_settings,
-                size: 48,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+            leading: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Icon(
+                    isOwner ? Icons.home_work_outlined : Icons.admin_panel_settings,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                // Role toggle button for admin/owner users
+                if (canToggleRoles) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Theme.of(context).colorScheme.outline),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            activeRole == UserRole.admin ? Icons.admin_panel_settings : Icons.home_work,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            activeRole == UserRole.admin ? 'Admin' : 'Owner',
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  IconButton(
+                    icon: const Icon(Icons.swap_horiz),
+                    onPressed: () {
+                      ref.read(activeRoleProvider.notifier).toggleRole();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Switched to ${activeRole == UserRole.admin ? 'Owner' : 'Admin'} mode'),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    tooltip: 'Toggle Role',
+                    iconSize: 24,
+                  ),
+                ],
+              ],
             ),
             destinations: const [
               NavigationRailDestination(
@@ -76,15 +129,55 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 alignment: Alignment.bottomCenter,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: IconButton(
-                    icon: const Icon(Icons.logout),
-                    onPressed: () async {
-                      await FirebaseAuth.instance.signOut();
-                      if (context.mounted) {
-                        context.go('/');
-                      }
-                    },
-                    tooltip: 'Logout',
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Visitor notifications badge for admins in admin mode
+                      if (activeRole == UserRole.admin)
+                        StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('societies')
+                              .doc(ref.watch(societyIdProvider))
+                              .collection('notifications')
+                              .where('type', isEqualTo: 'visitor_admin')
+                              .where('isRead', isEqualTo: false)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            final count = snapshot.data?.docs.length ?? 0;
+                            if (count == 0) return const SizedBox.shrink();
+                            
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.error,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.notifications_active, size: 14, color: Colors.white),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$count',
+                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.logout),
+                        onPressed: () async {
+                          await FirebaseAuth.instance.signOut();
+                          if (context.mounted) {
+                            context.go('/');
+                          }
+                        },
+                        tooltip: 'Logout',
+                      ),
+                    ],
                   ),
                 ),
               ),

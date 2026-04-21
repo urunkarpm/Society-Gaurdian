@@ -16,6 +16,7 @@ const messaging = admin.messaging();
 /**
  * Triggered when a new visitor is created
  * Sends FCM notification to resident and creates notification document
+ * Also notifies admins/owners who should receive visitor notifications
  */
 export const onVisitorCreate = functions.firestore
   .document('societies/{societyId}/visitors/{visitorId}')
@@ -42,7 +43,6 @@ export const onVisitorCreate = functions.firestore
       
       if (residentUids.length === 0) {
         console.log('No residents found for flat');
-        return;
       }
       
       // Get resident FCM tokens
@@ -62,12 +62,36 @@ export const onVisitorCreate = functions.firestore
         }
       }
       
-      if (fcmTokens.length === 0) {
-        console.log('No FCM tokens found for residents');
+      // Get admin/owner FCM tokens for visitor notifications
+      // This ensures admins (including those with owner role) get visitor notifications
+      const adminQuery = await db
+        .collection('users')
+        .where('societyId', '==', societyId)
+        .where('role', 'in', ['admin', 'owner'])
+        .get();
+      
+      const adminFcmTokens: string[] = [];
+      for (const doc of adminQuery.docs) {
+        const userData = doc.data();
+        // Check if this admin/owner should receive visitor notifications
+        const shouldReceiveVisitorNotifications = 
+          userData.receiveVisitorNotifications !== false && // Default true
+          userData.isAdminMode !== false; // For owners toggled to admin mode
+        
+        if (shouldReceiveVisitorNotifications && userData.fcmTokens) {
+          adminFcmTokens.push(...userData.fcmTokens);
+        }
+      }
+      
+      // Combine all tokens (residents + admins/owners)
+      const allTokens = [...fcmTokens, ...adminFcmTokens];
+      
+      if (allTokens.length === 0) {
+        console.log('No FCM tokens found for residents or admins');
       } else {
         // Send FCM notification
         const message: admin.messaging.MulticastMessage = {
-          tokens: fcmTokens,
+          tokens: allTokens,
           notification: {
             title: 'New Visitor Alert',
             body: `${visitorData.visitorName} has arrived at ${visitorData.gateName}`,
@@ -101,8 +125,8 @@ export const onVisitorCreate = functions.firestore
         console.log('FCM notifications sent successfully');
       }
       
-      // Create notification document in Firestore
-      const notificationData = {
+      // Create notification document in Firestore for residents
+      const residentNotificationData = {
         societyId: societyId,
         type: 'visitor',
         title: 'New Visitor Alert',
@@ -118,7 +142,7 @@ export const onVisitorCreate = functions.firestore
         },
         priority: 3,
         isRead: false,
-        shouldSendPush: true,
+        shouldSendPush: false, // Already sent via FCM above
         shouldShowInApp: true,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
@@ -127,9 +151,42 @@ export const onVisitorCreate = functions.firestore
         .collection('societies')
         .doc(societyId)
         .collection('notifications')
-        .add(notificationData);
+        .add(residentNotificationData);
       
-      console.log('Notification document created');
+      // Create separate notification document for admins/owners
+      const adminUids = adminQuery.docs.map(doc => doc.id);
+      if (adminUids.length > 0) {
+        const adminNotificationData = {
+          societyId: societyId,
+          type: 'visitor_admin',
+          title: 'Visitor Arrived (Admin Notification)',
+          body: `${visitorData.visitorName} arrived at ${visitorData.gateName} for Flat ${flatData.flatNumber || visitorData.hostFlatId}`,
+          targetUserIds: adminUids,
+          deepLink: `societyguardian://visitor/${visitorId}`,
+          data: {
+            visitorId: visitorId,
+            visitorName: visitorData.visitorName,
+            purpose: visitorData.purpose,
+            gateName: visitorData.gateName,
+            hostFlatId: visitorData.hostFlatId,
+          },
+          priority: 2,
+          isRead: false,
+          shouldSendPush: false, // Already sent via FCM above
+          shouldShowInApp: true,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        
+        await db
+          .collection('societies')
+          .doc(societyId)
+          .collection('notifications')
+          .add(adminNotificationData);
+        
+        console.log('Admin notification document created');
+      }
+      
+      console.log('Notification documents created');
       
       // Log audit trail
       await db.collection('audit_logs').add({
