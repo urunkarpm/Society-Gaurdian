@@ -4,7 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../providers/auth_provider.dart';
+import '../../domain/entities/user_entity.dart';
+import '../providers/auth_provider.dart';
 import 'admin/admin_inventory_screen.dart';
 import 'admin/admin_verifications_screen.dart';
 

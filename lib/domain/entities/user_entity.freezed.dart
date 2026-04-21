@@ -1530,6 +1530,9 @@ mixin _$AdminProfile {
   String? get designation => throw _privateConstructorUsedError;
   DateTime? get appointedDate => throw _privateConstructorUsedError;
   Map<String, dynamic>? get permissions => throw _privateConstructorUsedError;
+  bool get isOwner =>
+      throw _privateConstructorUsedError; // True if this admin is also a property owner
+  String? get ownerId => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -1553,7 +1556,9 @@ abstract class $AdminProfileCopyWith<$Res> {
       List<String> roles,
       String? designation,
       DateTime? appointedDate,
-      Map<String, dynamic>? permissions});
+      Map<String, dynamic>? permissions,
+      bool isOwner,
+      String? ownerId});
 }
 
 /// @nodoc
@@ -1579,6 +1584,8 @@ class _$AdminProfileCopyWithImpl<$Res, $Val extends AdminProfile>
     Object? designation = freezed,
     Object? appointedDate = freezed,
     Object? permissions = freezed,
+    Object? isOwner = null,
+    Object? ownerId = freezed,
   }) {
     return _then(_value.copyWith(
       userId: null == userId
@@ -1621,6 +1628,14 @@ class _$AdminProfileCopyWithImpl<$Res, $Val extends AdminProfile>
           ? _value.permissions
           : permissions // ignore: cast_nullable_to_non_nullable
               as Map<String, dynamic>?,
+      isOwner: null == isOwner
+          ? _value.isOwner
+          : isOwner // ignore: cast_nullable_to_non_nullable
+              as bool,
+      ownerId: freezed == ownerId
+          ? _value.ownerId
+          : ownerId // ignore: cast_nullable_to_non_nullable
+              as String?,
     ) as $Val);
   }
 }
@@ -1643,7 +1658,9 @@ abstract class _$$AdminProfileImplCopyWith<$Res>
       List<String> roles,
       String? designation,
       DateTime? appointedDate,
-      Map<String, dynamic>? permissions});
+      Map<String, dynamic>? permissions,
+      bool isOwner,
+      String? ownerId});
 }
 
 /// @nodoc
@@ -1667,6 +1684,8 @@ class __$$AdminProfileImplCopyWithImpl<$Res>
     Object? designation = freezed,
     Object? appointedDate = freezed,
     Object? permissions = freezed,
+    Object? isOwner = null,
+    Object? ownerId = freezed,
   }) {
     return _then(_$AdminProfileImpl(
       userId: null == userId
@@ -1709,6 +1728,14 @@ class __$$AdminProfileImplCopyWithImpl<$Res>
           ? _value._permissions
           : permissions // ignore: cast_nullable_to_non_nullable
               as Map<String, dynamic>?,
+      isOwner: null == isOwner
+          ? _value.isOwner
+          : isOwner // ignore: cast_nullable_to_non_nullable
+              as bool,
+      ownerId: freezed == ownerId
+          ? _value.ownerId
+          : ownerId // ignore: cast_nullable_to_non_nullable
+              as String?,
     ));
   }
 }
@@ -1726,7 +1753,9 @@ class _$AdminProfileImpl implements _AdminProfile {
       final List<String> roles = const ['admin'],
       this.designation,
       this.appointedDate,
-      final Map<String, dynamic>? permissions})
+      final Map<String, dynamic>? permissions,
+      this.isOwner = false,
+      this.ownerId})
       : _roles = roles,
         _permissions = permissions;
 
@@ -1769,8 +1798,15 @@ class _$AdminProfileImpl implements _AdminProfile {
   }
 
   @override
+  @JsonKey()
+  final bool isOwner;
+// True if this admin is also a property owner
+  @override
+  final String? ownerId;
+
+  @override
   String toString() {
-    return 'AdminProfile(userId: $userId, societyId: $societyId, fullName: $fullName, phoneNumber: $phoneNumber, email: $email, photoUrl: $photoUrl, roles: $roles, designation: $designation, appointedDate: $appointedDate, permissions: $permissions)';
+    return 'AdminProfile(userId: $userId, societyId: $societyId, fullName: $fullName, phoneNumber: $phoneNumber, email: $email, photoUrl: $photoUrl, roles: $roles, designation: $designation, appointedDate: $appointedDate, permissions: $permissions, isOwner: $isOwner, ownerId: $ownerId)';
   }
 
   @override
@@ -1794,7 +1830,9 @@ class _$AdminProfileImpl implements _AdminProfile {
             (identical(other.appointedDate, appointedDate) ||
                 other.appointedDate == appointedDate) &&
             const DeepCollectionEquality()
-                .equals(other._permissions, _permissions));
+                .equals(other._permissions, _permissions) &&
+            (identical(other.isOwner, isOwner) || other.isOwner == isOwner) &&
+            (identical(other.ownerId, ownerId) || other.ownerId == ownerId));
   }
 
   @JsonKey(ignore: true)
@@ -1810,7 +1848,9 @@ class _$AdminProfileImpl implements _AdminProfile {
       const DeepCollectionEquality().hash(_roles),
       designation,
       appointedDate,
-      const DeepCollectionEquality().hash(_permissions));
+      const DeepCollectionEquality().hash(_permissions),
+      isOwner,
+      ownerId);
 
   @JsonKey(ignore: true)
   @override
@@ -1837,7 +1877,9 @@ abstract class _AdminProfile implements AdminProfile {
       final List<String> roles,
       final String? designation,
       final DateTime? appointedDate,
-      final Map<String, dynamic>? permissions}) = _$AdminProfileImpl;
+      final Map<String, dynamic>? permissions,
+      final bool isOwner,
+      final String? ownerId}) = _$AdminProfileImpl;
 
   factory _AdminProfile.fromJson(Map<String, dynamic> json) =
       _$AdminProfileImpl.fromJson;
@@ -1863,8 +1905,426 @@ abstract class _AdminProfile implements AdminProfile {
   @override
   Map<String, dynamic>? get permissions;
   @override
+  bool get isOwner;
+  @override // True if this admin is also a property owner
+  String? get ownerId;
+  @override
   @JsonKey(ignore: true)
   _$$AdminProfileImplCopyWith<_$AdminProfileImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+OwnerProfile _$OwnerProfileFromJson(Map<String, dynamic> json) {
+  return _OwnerProfile.fromJson(json);
+}
+
+/// @nodoc
+mixin _$OwnerProfile {
+  String get userId => throw _privateConstructorUsedError;
+  String get societyId => throw _privateConstructorUsedError;
+  String get fullName => throw _privateConstructorUsedError;
+  String get phoneNumber => throw _privateConstructorUsedError;
+  String get email => throw _privateConstructorUsedError;
+  String? get photoUrl => throw _privateConstructorUsedError;
+  List<String> get roles => throw _privateConstructorUsedError;
+  List<String>? get ownedFlatIds =>
+      throw _privateConstructorUsedError; // Properties owned by this user
+  DateTime? get registeredDate => throw _privateConstructorUsedError;
+  Map<String, dynamic>? get permissions => throw _privateConstructorUsedError;
+  bool get canActAsAdmin =>
+      throw _privateConstructorUsedError; // Can toggle to admin mode
+  bool get isAdminMode => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $OwnerProfileCopyWith<OwnerProfile> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $OwnerProfileCopyWith<$Res> {
+  factory $OwnerProfileCopyWith(
+          OwnerProfile value, $Res Function(OwnerProfile) then) =
+      _$OwnerProfileCopyWithImpl<$Res, OwnerProfile>;
+  @useResult
+  $Res call(
+      {String userId,
+      String societyId,
+      String fullName,
+      String phoneNumber,
+      String email,
+      String? photoUrl,
+      List<String> roles,
+      List<String>? ownedFlatIds,
+      DateTime? registeredDate,
+      Map<String, dynamic>? permissions,
+      bool canActAsAdmin,
+      bool isAdminMode});
+}
+
+/// @nodoc
+class _$OwnerProfileCopyWithImpl<$Res, $Val extends OwnerProfile>
+    implements $OwnerProfileCopyWith<$Res> {
+  _$OwnerProfileCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? userId = null,
+    Object? societyId = null,
+    Object? fullName = null,
+    Object? phoneNumber = null,
+    Object? email = null,
+    Object? photoUrl = freezed,
+    Object? roles = null,
+    Object? ownedFlatIds = freezed,
+    Object? registeredDate = freezed,
+    Object? permissions = freezed,
+    Object? canActAsAdmin = null,
+    Object? isAdminMode = null,
+  }) {
+    return _then(_value.copyWith(
+      userId: null == userId
+          ? _value.userId
+          : userId // ignore: cast_nullable_to_non_nullable
+              as String,
+      societyId: null == societyId
+          ? _value.societyId
+          : societyId // ignore: cast_nullable_to_non_nullable
+              as String,
+      fullName: null == fullName
+          ? _value.fullName
+          : fullName // ignore: cast_nullable_to_non_nullable
+              as String,
+      phoneNumber: null == phoneNumber
+          ? _value.phoneNumber
+          : phoneNumber // ignore: cast_nullable_to_non_nullable
+              as String,
+      email: null == email
+          ? _value.email
+          : email // ignore: cast_nullable_to_non_nullable
+              as String,
+      photoUrl: freezed == photoUrl
+          ? _value.photoUrl
+          : photoUrl // ignore: cast_nullable_to_non_nullable
+              as String?,
+      roles: null == roles
+          ? _value.roles
+          : roles // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+      ownedFlatIds: freezed == ownedFlatIds
+          ? _value.ownedFlatIds
+          : ownedFlatIds // ignore: cast_nullable_to_non_nullable
+              as List<String>?,
+      registeredDate: freezed == registeredDate
+          ? _value.registeredDate
+          : registeredDate // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      permissions: freezed == permissions
+          ? _value.permissions
+          : permissions // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
+      canActAsAdmin: null == canActAsAdmin
+          ? _value.canActAsAdmin
+          : canActAsAdmin // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isAdminMode: null == isAdminMode
+          ? _value.isAdminMode
+          : isAdminMode // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$OwnerProfileImplCopyWith<$Res>
+    implements $OwnerProfileCopyWith<$Res> {
+  factory _$$OwnerProfileImplCopyWith(
+          _$OwnerProfileImpl value, $Res Function(_$OwnerProfileImpl) then) =
+      __$$OwnerProfileImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {String userId,
+      String societyId,
+      String fullName,
+      String phoneNumber,
+      String email,
+      String? photoUrl,
+      List<String> roles,
+      List<String>? ownedFlatIds,
+      DateTime? registeredDate,
+      Map<String, dynamic>? permissions,
+      bool canActAsAdmin,
+      bool isAdminMode});
+}
+
+/// @nodoc
+class __$$OwnerProfileImplCopyWithImpl<$Res>
+    extends _$OwnerProfileCopyWithImpl<$Res, _$OwnerProfileImpl>
+    implements _$$OwnerProfileImplCopyWith<$Res> {
+  __$$OwnerProfileImplCopyWithImpl(
+      _$OwnerProfileImpl _value, $Res Function(_$OwnerProfileImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? userId = null,
+    Object? societyId = null,
+    Object? fullName = null,
+    Object? phoneNumber = null,
+    Object? email = null,
+    Object? photoUrl = freezed,
+    Object? roles = null,
+    Object? ownedFlatIds = freezed,
+    Object? registeredDate = freezed,
+    Object? permissions = freezed,
+    Object? canActAsAdmin = null,
+    Object? isAdminMode = null,
+  }) {
+    return _then(_$OwnerProfileImpl(
+      userId: null == userId
+          ? _value.userId
+          : userId // ignore: cast_nullable_to_non_nullable
+              as String,
+      societyId: null == societyId
+          ? _value.societyId
+          : societyId // ignore: cast_nullable_to_non_nullable
+              as String,
+      fullName: null == fullName
+          ? _value.fullName
+          : fullName // ignore: cast_nullable_to_non_nullable
+              as String,
+      phoneNumber: null == phoneNumber
+          ? _value.phoneNumber
+          : phoneNumber // ignore: cast_nullable_to_non_nullable
+              as String,
+      email: null == email
+          ? _value.email
+          : email // ignore: cast_nullable_to_non_nullable
+              as String,
+      photoUrl: freezed == photoUrl
+          ? _value.photoUrl
+          : photoUrl // ignore: cast_nullable_to_non_nullable
+              as String?,
+      roles: null == roles
+          ? _value._roles
+          : roles // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+      ownedFlatIds: freezed == ownedFlatIds
+          ? _value._ownedFlatIds
+          : ownedFlatIds // ignore: cast_nullable_to_non_nullable
+              as List<String>?,
+      registeredDate: freezed == registeredDate
+          ? _value.registeredDate
+          : registeredDate // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      permissions: freezed == permissions
+          ? _value._permissions
+          : permissions // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
+      canActAsAdmin: null == canActAsAdmin
+          ? _value.canActAsAdmin
+          : canActAsAdmin // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isAdminMode: null == isAdminMode
+          ? _value.isAdminMode
+          : isAdminMode // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ));
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$OwnerProfileImpl implements _OwnerProfile {
+  const _$OwnerProfileImpl(
+      {required this.userId,
+      required this.societyId,
+      required this.fullName,
+      required this.phoneNumber,
+      required this.email,
+      this.photoUrl,
+      final List<String> roles = const ['owner'],
+      final List<String>? ownedFlatIds,
+      this.registeredDate,
+      final Map<String, dynamic>? permissions,
+      this.canActAsAdmin = true,
+      this.isAdminMode = false})
+      : _roles = roles,
+        _ownedFlatIds = ownedFlatIds,
+        _permissions = permissions;
+
+  factory _$OwnerProfileImpl.fromJson(Map<String, dynamic> json) =>
+      _$$OwnerProfileImplFromJson(json);
+
+  @override
+  final String userId;
+  @override
+  final String societyId;
+  @override
+  final String fullName;
+  @override
+  final String phoneNumber;
+  @override
+  final String email;
+  @override
+  final String? photoUrl;
+  final List<String> _roles;
+  @override
+  @JsonKey()
+  List<String> get roles {
+    if (_roles is EqualUnmodifiableListView) return _roles;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_roles);
+  }
+
+  final List<String>? _ownedFlatIds;
+  @override
+  List<String>? get ownedFlatIds {
+    final value = _ownedFlatIds;
+    if (value == null) return null;
+    if (_ownedFlatIds is EqualUnmodifiableListView) return _ownedFlatIds;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+// Properties owned by this user
+  @override
+  final DateTime? registeredDate;
+  final Map<String, dynamic>? _permissions;
+  @override
+  Map<String, dynamic>? get permissions {
+    final value = _permissions;
+    if (value == null) return null;
+    if (_permissions is EqualUnmodifiableMapView) return _permissions;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
+  @override
+  @JsonKey()
+  final bool canActAsAdmin;
+// Can toggle to admin mode
+  @override
+  @JsonKey()
+  final bool isAdminMode;
+
+  @override
+  String toString() {
+    return 'OwnerProfile(userId: $userId, societyId: $societyId, fullName: $fullName, phoneNumber: $phoneNumber, email: $email, photoUrl: $photoUrl, roles: $roles, ownedFlatIds: $ownedFlatIds, registeredDate: $registeredDate, permissions: $permissions, canActAsAdmin: $canActAsAdmin, isAdminMode: $isAdminMode)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$OwnerProfileImpl &&
+            (identical(other.userId, userId) || other.userId == userId) &&
+            (identical(other.societyId, societyId) ||
+                other.societyId == societyId) &&
+            (identical(other.fullName, fullName) ||
+                other.fullName == fullName) &&
+            (identical(other.phoneNumber, phoneNumber) ||
+                other.phoneNumber == phoneNumber) &&
+            (identical(other.email, email) || other.email == email) &&
+            (identical(other.photoUrl, photoUrl) ||
+                other.photoUrl == photoUrl) &&
+            const DeepCollectionEquality().equals(other._roles, _roles) &&
+            const DeepCollectionEquality()
+                .equals(other._ownedFlatIds, _ownedFlatIds) &&
+            (identical(other.registeredDate, registeredDate) ||
+                other.registeredDate == registeredDate) &&
+            const DeepCollectionEquality()
+                .equals(other._permissions, _permissions) &&
+            (identical(other.canActAsAdmin, canActAsAdmin) ||
+                other.canActAsAdmin == canActAsAdmin) &&
+            (identical(other.isAdminMode, isAdminMode) ||
+                other.isAdminMode == isAdminMode));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      userId,
+      societyId,
+      fullName,
+      phoneNumber,
+      email,
+      photoUrl,
+      const DeepCollectionEquality().hash(_roles),
+      const DeepCollectionEquality().hash(_ownedFlatIds),
+      registeredDate,
+      const DeepCollectionEquality().hash(_permissions),
+      canActAsAdmin,
+      isAdminMode);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$OwnerProfileImplCopyWith<_$OwnerProfileImpl> get copyWith =>
+      __$$OwnerProfileImplCopyWithImpl<_$OwnerProfileImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$OwnerProfileImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _OwnerProfile implements OwnerProfile {
+  const factory _OwnerProfile(
+      {required final String userId,
+      required final String societyId,
+      required final String fullName,
+      required final String phoneNumber,
+      required final String email,
+      final String? photoUrl,
+      final List<String> roles,
+      final List<String>? ownedFlatIds,
+      final DateTime? registeredDate,
+      final Map<String, dynamic>? permissions,
+      final bool canActAsAdmin,
+      final bool isAdminMode}) = _$OwnerProfileImpl;
+
+  factory _OwnerProfile.fromJson(Map<String, dynamic> json) =
+      _$OwnerProfileImpl.fromJson;
+
+  @override
+  String get userId;
+  @override
+  String get societyId;
+  @override
+  String get fullName;
+  @override
+  String get phoneNumber;
+  @override
+  String get email;
+  @override
+  String? get photoUrl;
+  @override
+  List<String> get roles;
+  @override
+  List<String>? get ownedFlatIds;
+  @override // Properties owned by this user
+  DateTime? get registeredDate;
+  @override
+  Map<String, dynamic>? get permissions;
+  @override
+  bool get canActAsAdmin;
+  @override // Can toggle to admin mode
+  bool get isAdminMode;
+  @override
+  @JsonKey(ignore: true)
+  _$$OwnerProfileImplCopyWith<_$OwnerProfileImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 

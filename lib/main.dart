@@ -29,10 +29,14 @@ void main() async {
   );
   
   // Initialize Firebase App Check
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-    appleProvider: AppleProvider.appAttest,
-  );
+  try {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+      appleProvider: AppleProvider.appAttest,
+    );
+  } catch (e) {
+    Logger.warning('App Check activation failed: $e', tag: 'Main');
+  }
   
   // Initialize Hive for local caching
   await Hive.initFlutter();

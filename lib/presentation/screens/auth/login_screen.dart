@@ -88,7 +88,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(
-                    Icons.google,
+                    Icons.login,
                     size: 64,
                     color: AppTheme.primaryColor,
                   ),

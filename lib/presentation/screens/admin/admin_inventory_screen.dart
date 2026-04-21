@@ -412,7 +412,7 @@ class _InventoryItemCard extends StatelessWidget {
               ? Colors.orange.shade100
               : Colors.blue.shade100,
           child: Icon(
-            type == InventoryItemType.consumable ? Icons.bolt : Icons.tools,
+            type == InventoryItemType.consumable ? Icons.bolt : Icons.build,
             color: type == InventoryItemType.consumable ? Colors.orange : Colors.blue,
           ),
         ),
@@ -719,12 +719,12 @@ class _InventoryItemCard extends StatelessWidget {
 }
 
 // Add New Inventory Item Dialog
-class _AddInventoryItemDialog extends StatefulWidget {
+class _AddInventoryItemDialog extends ConsumerStatefulWidget {
   @override
-  State<_AddInventoryItemDialog> createState() => _AddInventoryItemDialogState();
+  ConsumerState<_AddInventoryItemDialog> createState() => _AddInventoryItemDialogState();
 }
 
-class _AddInventoryItemDialogState extends State<_AddInventoryItemDialog> {
+class _AddInventoryItemDialogState extends ConsumerState<_AddInventoryItemDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _categoryController = TextEditingController(text: 'Electrical');
@@ -755,7 +755,7 @@ class _AddInventoryItemDialogState extends State<_AddInventoryItemDialog> {
     setState(() => _isSaving = true);
 
     try {
-      final societyId = context.read<societyIdProvider>();
+      final societyId = ref.read(societyIdProvider);
       if (societyId == null) throw Exception('Society ID not found');
 
       final user = FirebaseAuth.instance.currentUser;

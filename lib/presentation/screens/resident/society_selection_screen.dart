@@ -161,8 +161,8 @@ class _SocietySelectionScreenState extends ConsumerState<SocietySelectionScreen>
       
       final flatNumbers = <String>{};
       for (var doc in snapshot.docs) {
-        final data = doc.data();
-        if (data['flatNumber'] != null) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null && data['flatNumber'] != null) {
           flatNumbers.add(data['flatNumber'] as String);
         }
       }

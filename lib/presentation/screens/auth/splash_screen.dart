@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../providers/auth_provider.dart';
+import '../../../domain/entities/user_entity.dart';
 
 /// Splash Screen
 class SplashScreen extends ConsumerStatefulWidget {
@@ -24,11 +25,41 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   Future<void> _initializeApp() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      context.go('/resident/home');
-    } else {
+
+    // Wait for auth state to resolve, with timeout fallback
+    UserEntity? authState;
+    try {
+      authState = await ref.read(authStateProvider.future)
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      authState = null;
+    }
+    if (!mounted) return;
+
+    if (authState == null) {
       context.go('/login');
+      return;
+    }
+
+    switch (authState.role) {
+      case UserRole.admin:
+      case UserRole.owner:
+        context.go('/admin/dashboard');
+        break;
+      case UserRole.security:
+        context.go('/guard/home');
+        break;
+      case UserRole.resident:
+      case UserRole.vendor:
+        final verificationStatus = authState.metadata?['verificationStatus'];
+        if (verificationStatus == 'pending') {
+          context.go('/waiting-approval');
+        } else if (authState.societyId == null) {
+          context.go('/select-residence');
+        } else {
+          context.go('/resident/home');
+        }
+        break;
     }
   }
 

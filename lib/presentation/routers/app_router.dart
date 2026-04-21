@@ -39,8 +39,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (isLoggedIn && (isSplash || isLoggingIn)) {
         final user = authService.currentUser;
         if (user != null) {
-          final role = UserRole.resident;
-          
+          final role = ref.read(userRoleProvider);
+
           switch (role) {
             case UserRole.resident:
               return '/resident/home';
@@ -50,6 +50,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               return '/admin/dashboard';
             case UserRole.vendor:
               return '/vendor/home';
+            case UserRole.owner:
+              return '/owner/dashboard';
+            case null:
+              return '/login';
           }
         }
       }

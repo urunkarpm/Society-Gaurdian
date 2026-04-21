@@ -55,6 +55,7 @@ const _$UserRoleEnumMap = {
   UserRole.security: 'security',
   UserRole.admin: 'admin',
   UserRole.vendor: 'vendor',
+  UserRole.owner: 'owner',
 };
 
 _$ResidentProfileImpl _$$ResidentProfileImplFromJson(
@@ -177,6 +178,8 @@ _$AdminProfileImpl _$$AdminProfileImplFromJson(Map<String, dynamic> json) =>
           ? null
           : DateTime.parse(json['appointedDate'] as String),
       permissions: json['permissions'] as Map<String, dynamic>?,
+      isOwner: json['isOwner'] as bool? ?? false,
+      ownerId: json['ownerId'] as String?,
     );
 
 Map<String, dynamic> _$$AdminProfileImplToJson(_$AdminProfileImpl instance) =>
@@ -191,6 +194,46 @@ Map<String, dynamic> _$$AdminProfileImplToJson(_$AdminProfileImpl instance) =>
       'designation': instance.designation,
       'appointedDate': instance.appointedDate?.toIso8601String(),
       'permissions': instance.permissions,
+      'isOwner': instance.isOwner,
+      'ownerId': instance.ownerId,
+    };
+
+_$OwnerProfileImpl _$$OwnerProfileImplFromJson(Map<String, dynamic> json) =>
+    _$OwnerProfileImpl(
+      userId: json['userId'] as String,
+      societyId: json['societyId'] as String,
+      fullName: json['fullName'] as String,
+      phoneNumber: json['phoneNumber'] as String,
+      email: json['email'] as String,
+      photoUrl: json['photoUrl'] as String?,
+      roles:
+          (json['roles'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+              const ['owner'],
+      ownedFlatIds: (json['ownedFlatIds'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      registeredDate: json['registeredDate'] == null
+          ? null
+          : DateTime.parse(json['registeredDate'] as String),
+      permissions: json['permissions'] as Map<String, dynamic>?,
+      canActAsAdmin: json['canActAsAdmin'] as bool? ?? true,
+      isAdminMode: json['isAdminMode'] as bool? ?? false,
+    );
+
+Map<String, dynamic> _$$OwnerProfileImplToJson(_$OwnerProfileImpl instance) =>
+    <String, dynamic>{
+      'userId': instance.userId,
+      'societyId': instance.societyId,
+      'fullName': instance.fullName,
+      'phoneNumber': instance.phoneNumber,
+      'email': instance.email,
+      'photoUrl': instance.photoUrl,
+      'roles': instance.roles,
+      'ownedFlatIds': instance.ownedFlatIds,
+      'registeredDate': instance.registeredDate?.toIso8601String(),
+      'permissions': instance.permissions,
+      'canActAsAdmin': instance.canActAsAdmin,
+      'isAdminMode': instance.isAdminMode,
     };
 
 _$VendorProfileImpl _$$VendorProfileImplFromJson(Map<String, dynamic> json) =>
