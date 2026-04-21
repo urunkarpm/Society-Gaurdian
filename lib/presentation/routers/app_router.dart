@@ -139,6 +139,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AdminDashboardScreen(),
       ),
       
+      // Owner routes (for owners who can toggle to admin mode)
+      GoRoute(
+        path: '/owner/dashboard',
+        builder: (context, state) => const AdminDashboardScreen(), // Owners use same dashboard
+      ),
+      GoRoute(
+        path: '/owner/visitors',
+        builder: (context, state) => const ResidentHomeScreen(), // Owners see visitor notifications
+      ),
+      
       // Deep link routes
       GoRoute(
         path: '/visitor/:visitorId',
@@ -194,7 +204,9 @@ class RoleGuard {
   static const residentOnly = RoleGuard(allowedRoles: [UserRole.resident]);
   static const securityOnly = RoleGuard(allowedRoles: [UserRole.security]);
   static const adminOnly = RoleGuard(allowedRoles: [UserRole.admin]);
+  static const ownerOnly = RoleGuard(allowedRoles: [UserRole.owner]);
+  static const adminOrOwner = RoleGuard(allowedRoles: [UserRole.admin, UserRole.owner]);
   static const vendorOnly = RoleGuard(allowedRoles: [UserRole.vendor]);
-  static const staffOnly = RoleGuard(allowedRoles: [UserRole.security, UserRole.admin]);
+  static const staffOnly = RoleGuard(allowedRoles: [UserRole.security, UserRole.admin, UserRole.owner]);
   static const allRoles = RoleGuard(allowedRoles: UserRole.values);
 }

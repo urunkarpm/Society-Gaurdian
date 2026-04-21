@@ -9,6 +9,7 @@ enum UserRole {
   security,
   admin,
   vendor,
+  owner, // Property owner role (can toggle with admin)
 }
 
 /// User entity representing authentication and profile data
@@ -101,9 +102,32 @@ class AdminProfile with _$AdminProfile {
     String? designation,
     DateTime? appointedDate,
     Map<String, dynamic>? permissions,
+    @Default(false) bool isOwner, // True if this admin is also a property owner
+    String? ownerId, // Reference to owner profile if applicable
   }) = _AdminProfile;
 
   factory AdminProfile.fromJson(Map<String, dynamic> json) => _$AdminProfileFromJson(json);
+}
+
+/// Owner profile (property owner who can also act as admin)
+@freezed
+class OwnerProfile with _$OwnerProfile {
+  const factory OwnerProfile({
+    required String userId,
+    required String societyId,
+    required String fullName,
+    required String phoneNumber,
+    required String email,
+    String? photoUrl,
+    @Default(['owner']) List<String> roles,
+    List<String>? ownedFlatIds, // Properties owned by this user
+    DateTime? registeredDate,
+    Map<String, dynamic>? permissions,
+    @Default(true) bool canActAsAdmin, // Can toggle to admin mode
+    @Default(false) bool isAdminMode, // Currently acting as admin
+  }) = _OwnerProfile;
+
+  factory OwnerProfile.fromJson(Map<String, dynamic> json) => _$OwnerProfileFromJson(json);
 }
 
 /// Vendor profile

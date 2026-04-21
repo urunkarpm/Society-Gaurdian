@@ -7,6 +7,32 @@ import '../../domain/entities/user_entity.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/logger.dart';
 
+/// State notifier for managing active role (for admin/owner toggle)
+class ActiveRoleNotifier extends StateNotifier<UserRole?> {
+  ActiveRoleNotifier(UserRole? initialRole) : super(initialRole);
+
+  /// Toggle between admin and owner roles
+  void toggleRole() {
+    if (state == UserRole.admin) {
+      state = UserRole.owner;
+    } else if (state == UserRole.owner) {
+      state = UserRole.admin;
+    }
+  }
+
+  /// Set active role explicitly
+  void setRole(UserRole role) {
+    if (role == UserRole.admin || role == UserRole.owner) {
+      state = role;
+    }
+  }
+
+  /// Reset to base role
+  void resetToBaseRole(UserRole? baseRole) {
+    state = baseRole;
+  }
+}
+
 /// Authentication state provider
 final authStateProvider = StreamProvider<UserEntity?>((ref) {
   return FirebaseAuth.instance.authStateChanges().asyncMap((user) async {
@@ -86,6 +112,12 @@ final userRoleProvider = Provider<UserRole?>((ref) {
   return user?.role;
 });
 
+/// Active role provider - handles role toggling for admin/owner users
+final activeRoleProvider = StateNotifierProvider<ActiveRoleNotifier, UserRole?>((ref) {
+  final user = ref.watch(currentUserProvider);
+  return ActiveRoleNotifier(user?.role);
+});
+
 /// Check if user is resident
 final isResidentProvider = Provider<bool>((ref) {
   final role = ref.watch(userRoleProvider);
@@ -100,8 +132,24 @@ final isSecurityProvider = Provider<bool>((ref) {
 
 /// Check if user is admin
 final isAdminProvider = Provider<bool>((ref) {
-  final role = ref.watch(userRoleProvider);
+  final role = ref.watch(activeRoleProvider);
   return role == UserRole.admin;
+});
+
+/// Check if user is owner
+final isOwnerProvider = Provider<bool>((ref) {
+  final role = ref.watch(userRoleProvider);
+  return role == UserRole.owner;
+});
+
+/// Check if user can toggle roles (admin who is also owner)
+final canToggleRolesProvider = Provider<bool>((ref) {
+  final user = ref.watch(currentUserProvider);
+  final baseRole = user?.role;
+  final isAdmin = baseRole == UserRole.admin;
+  final isOwnerFlag = user?.metadata?['isOwner'] == true || 
+                      user?.metadata?['roles']?.contains('owner') == true;
+  return isAdmin && isOwnerFlag;
 });
 
 /// Society ID provider
