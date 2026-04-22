@@ -1,45 +1,48 @@
 # 🏢 Society Guardian - Residential Society Management App
 
-A production-ready, real-time residential society management solution built with **Flutter 3.x**, **Firebase**, and **Material 3**. Designed for modern housing societies to automate visitor tracking, manage inventory, handle residence verification, and ensure community security.
+A production-ready, real-time residential society management solution built with **Flutter 3.x**, **Firebase**, and **Material 3**. Designed for modern housing societies to automate visitor tracking, manage residence verification, handle inventory management, and ensure community security.
 
 ## 🚀 Key Features
 
 ### 🔐 Multi-Role Authentication
-- **Residents**: Secure Google Sign-In with biometric fallback
-- **Security Guards**: Email/Password auth (credentials assigned by Admin)
-- **Admins**: Full dashboard access with custom claims, role toggle support for owners
-- **Owners**: Special role with ability to toggle into admin mode for oversight
+- **Residents**: Secure Google Sign-In with profile management
+- **Security Guards**: Email/Password authentication (credentials assigned by Admin)
+- **Admins**: Full dashboard access with comprehensive management capabilities
+- **Owners**: Property owner role with ability to toggle into admin mode for oversight
+- **Vendors**: Service provider access with restricted permissions
+- **Custom Claims**: Server-side role verification via Firebase Auth
 
-### 👮 Automated Visitor Management
-- **Real-Time Tracking**: Guards scan QR/NFC or enter visitor details manually
-- **Instant Notifications**: Residents and admins receive FCM push notifications immediately upon visitor arrival
-- **Pre-Approval System**: Residents generate shareable QR codes for expected guests
-- **Dual Notification System**: Separate notification streams for residents and admin/owners
-- **Auto-Expiry**: Cloud Functions automatically expire pending visitors after set duration
+### 👮 Security Guard Interface
+- **Visitor Registration**: Manual entry form with name, phone, purpose, flat number, and vehicle details
+- **QR Code Scanning**: Mobile camera integration for scanning visitor QR codes using `mobile_scanner`
+- **Photo Capture**: Image picker integration for capturing visitor photos
+- **Visitor History**: Real-time log of all visitors with status tracking (pending, entered, exited)
+- **Gate Selection**: Multiple gate support for large societies
+- **Visitor Types**: Categorization as Guest, Delivery, Service, or Other
+- **Status Updates**: Mark visitor entry and exit with timestamps
 
 ### 🏠 Resident Portal
-- **Visitor History**: View all past and current visitors
-- **Residence Verification**: Submit documents for verification, track approval status
-- **Society Selection**: Join or request access to residential societies
-- **Waiting Approval**: Screen for users awaiting admin verification
-- **Notice Board**: Society-wide announcements with read receipts
-- **Emergency SOS**: One-tap alert to security and admins with location
-
-### 🛡️ Security Dashboard (Guard Interface)
-- **Quick Tagging**: Scan license plates, IDs, or QR codes
-- **Offline Mode**: Queue writes locally when network drops, sync automatically
-- **Patrol Logs**: Digital check-in/check-out with timestamps
-- **Visitor Directory**: Search and verify visitor details instantly
-- **History Tracking**: Real-time visitor log with status chips and search
+- **Society Selection**: Browse and select from available residential societies
+- **Flat Selection**: Choose building number, wing, and specific flat
+- **Residence Verification**: Submit verification requests for admin approval
+- **Waiting Approval Screen**: Track verification request status with rejection reasons
+- **Visitor Notifications**: Receive real-time alerts when visitors arrive (via Cloud Functions)
+- **Profile Management**: Update contact information and preferences
 
 ### 👑 Admin Command Center
-- **User Management**: Add/Remove security guards, assign roles, manage residents
+- **Security Guards Management**: Add, manage, and assign security personnel
 - **Residence Verifications**: Review and approve/reject resident verification requests with reasons
-- **Inventory Management**: Full control over society inventory with categories, transactions, and photo evidence
-- **Real-Time Analytics**: Live metrics on occupancy, visitor traffic, revenue
-- **Financial Oversight**: Track collections, pending dues, expense reports
-- **Society Configuration**: Manage buildings, flats, amenities, and rules
-- **Audit Logs**: Complete history of critical actions
+  - View pending, approved, and rejected requests
+  - Assign society and flat upon approval
+  - Provide rejection feedback to users
+- **Inventory Management**: Complete inventory control system
+  - Track consumables (bulbs, cleaning supplies) and durables (tools, equipment)
+  - Categorize items (Electrical, Tools, Cleaning, Plumbing, Safety, Office Supplies)
+  - Record transactions with quantity changes and evidence photos
+  - Set minimum quantity alerts for consumables
+  - View complete transaction history with audit trail
+- **Residents Management**: Oversee society residents and their assignments
+- **Society Overview**: Dashboard with society statistics and metrics
 - **Role Toggle**: Admin/Owner users can switch between roles seamlessly
 
 ## 🏗️ Architecture
@@ -68,19 +71,28 @@ lib/
 ## 📦 Tech Stack
 
 ### Frontend
-- **Flutter 3.x** / **Dart 3+**
-- **Riverpod** - State management
-- **GoRouter** - Navigation
-- **Freezed** - Code generation
-- **Material 3** - UI components
+- **Flutter 3.x** / **Dart 3+** (Sealed classes, Records, Pattern matching)
+- **Riverpod** - State management with `StateNotifierProvider` for role toggling
+- **GoRouter** - Navigation with deep linking and role-based route guards
+- **Freezed** - Code generation for immutable entities and models
+- **Material 3** - UI components with custom theme
+- **mobile_scanner** - QR code scanning for visitor check-in
+- **image_picker** - Photo capture for visitor records and inventory evidence
+- **firebase_core** - Firebase initialization
+- **firebase_auth** - Authentication (Google Sign-In, Email/Password)
+- **cloud_firestore** - Real-time database
+- **firebase_storage** - File storage for photos and documents
+- **google_sign_in** - Google authentication integration
 
-### Tech Stack
-- **Frontend**: Flutter 3.x / Dart 3 (Sealed classes, Records, Pattern matching)
-- **State Management**: Riverpod + `freezed` for immutable states
-- **Routing**: GoRouter with deep linking and role-based guards
-- **Backend**: Firebase (Auth, Firestore, Functions, Storage, FCM)
-- **Local DB**: Hive for offline sync queue
-- **Design**: Material 3 with custom theme
+### Backend
+- **Firebase Authentication**: Multi-provider auth with custom claims
+- **Cloud Firestore**: NoSQL database with real-time listeners
+- **Cloud Functions**: Serverless backend logic (Node.js/TypeScript)
+- **Firebase Storage**: Image and document storage
+- **Firebase Cloud Messaging**: Push notifications (configured via Cloud Functions)
+
+### Local Storage
+- **Hive**: Lightweight local database for offline sync queue
 
 ## ⚙️ Firebase Infrastructure
 
@@ -106,37 +118,41 @@ lib/
 
 ## 📱 How It Works
 
-### Visitor Flow
-1. **Arrival**: Guard scans visitor ID or enters details in app.
-2. **Trigger**: App writes to Firestore `visitors` collection.
-3. **Notification**: Cloud Function detects write, resolves flat owner's and admin/owner FCM tokens, sends push notifications.
-4. **Action**: Resident receives alert with photo/name, can approve/reject or call guard.
-5. **Entry**: Guard marks "Entered", system logs timestamp.
-
-### Admin Managing Guards
-1. Admin logs into **Admin Dashboard**.
-2. Navigates to **Security Management**.
-3. Clicks "Add Guard", enters email and assigns device.
-4. System creates user with `role: security` claim.
-5. Guard receives credentials, logs in via Email/Password.
+### Visitor Registration Flow
+1. **Guard Entry**: Security guard opens app and navigates to visitor registration tab.
+2. **Manual Entry or Scan**: Guard enters visitor details manually or scans QR code using mobile camera.
+3. **Photo Capture**: Optional photo capture using image picker for visitor record.
+4. **Firestore Write**: App writes visitor document to Firestore `visitors` collection with status "pending".
+5. **Status Tracking**: Guard can view all visitors in history tab with real-time status updates.
+6. **Entry/Exit Logging**: Guard marks visitor entry and exit timestamps.
 
 ### Residence Verification Flow
-1. **Registration**: User signs up and submits verification request with documents (ownership proof, ID, etc.).
-2. **Review**: Admin receives notification and reviews request in **Residence Verifications** screen.
-3. **Decision**: Admin approves (assigns flat/society) or rejects with reason.
-4. **Access**: Upon approval, user gains resident access to society features.
+1. **Registration**: User signs up via Google Sign-In and navigates to society selection screen.
+2. **Society & Flat Selection**: User browses available societies, selects building number, wing, and flat.
+3. **Submit Request**: User submits verification request which is stored in `residence_verifications` collection.
+4. **Waiting Approval**: User sees waiting approval screen with request status.
+5. **Admin Review**: Admin receives notification and reviews request in **Residence Verifications** screen.
+6. **Decision**: 
+   - **Approve**: Admin assigns society/flat, user role updated to "resident", access granted.
+   - **Reject**: Admin provides rejection reason, user can resubmit with corrections.
+7. **Access Granted**: Upon approval, user gains full resident access to society features.
 
 ### Inventory Management Flow
-1. **Track Items**: Admin adds inventory items (consumables like bulbs, durables like tools).
-2. **Record Usage**: When item is used, admin logs transaction with quantity, location, and photos.
-3. **Alerts**: System alerts when consumables reach minimum threshold.
-4. **History**: Complete audit trail of all inventory movements.
+1. **Add Item**: Admin adds inventory item with name, category, type (consumable/durable), quantity, and location.
+2. **Categorization**: Items organized by categories (Electrical, Tools, Cleaning, Plumbing, Safety, Office Supplies).
+3. **Transaction Recording**: When item is used or added, admin logs transaction with:
+   - Quantity change (positive for addition, negative for usage)
+   - Reason and description
+   - Evidence photos showing installation/location
+   - Timestamp and performer details
+4. **Alert System**: System tracks minimum quantity thresholds for consumables.
+5. **Audit Trail**: Complete history of all inventory movements with searchable transaction log.
 
 ### Role Toggle (Admin/Owner)
-1. **Eligibility**: Users with both admin and owner roles can toggle.
+1. **Eligibility**: Users with both admin and owner roles can toggle between modes.
 2. **Switch Mode**: Click swap icon in navigation rail to switch between admin and owner modes.
-3. **Notifications**: In admin mode, receive visitor notifications for oversight.
-4. **Badge**: Red notification badge shows unread visitor alerts count.
+3. **Dashboard Access**: Same dashboard interface adapts based on active role.
+4. **Seamless Transition**: No re-authentication required, instant role switching.
 
 ## 🛠️ Setup Instructions
 
@@ -206,39 +222,50 @@ flutter run
 
 ## 🔐 Security Features
 
-- **Role-Based Access Control (RBAC)**: Resident, Security, Admin, Vendor roles
-- **Firestore Security Rules**: Comprehensive read/write permissions with field-level validation
-- **Firebase App Check**: Device attestation for security guards
-- **Custom Claims**: Server-side role verification via Cloud Functions
-- **Google Sign-In**: OAuth 2.0 authentication for residents
-- **Audit Logging**: Track all critical actions in `audit_logs` collection
+- **Role-Based Access Control (RBAC)**: Resident, Security, Admin, Vendor, Owner roles with granular permissions
+- **Firestore Security Rules**: Comprehensive read/write permissions with field-level validation and data sanitization
+- **Firebase App Check**: Device attestation for security guards to prevent unauthorized access
+- **Custom Claims**: Server-side role verification via Cloud Functions for sensitive operations
+- **Google Sign-In**: OAuth 2.0 authentication for residents with secure token handling
+- **Email/Password Authentication**: Secure credential-based login for security personnel
+- **Audit Logging**: Complete history of critical actions in `audit_logs` collection with timestamps and user tracking
 - **Data Encryption**: TLS in transit, Firebase default encryption at rest
+- **Input Validation**: Client and server-side validation for all user inputs
+- **Session Management**: Automatic token refresh and secure session handling
 
 ## 📱 Key Screens
 
 ### Security Guard Interface
-- **Scan Tab**: QR/NFC scanner for pre-approved visitors with camera integration
-- **Manual Entry Tab**: Form-based visitor registration with photo capture
-- **History Tab**: Real-time visitor log with status chips and search
-- **Patrol Logs**: Digital check-in/check-out with timestamps
+- **Manual Entry Tab**: Form-based visitor registration with fields for name, phone, purpose, flat number, vehicle number
+- **QR Scanner Tab**: Mobile camera integration using `mobile_scanner` for scanning visitor QR codes
+- **Photo Capture**: Image picker integration for capturing visitor photos during registration
+- **History Tab**: Real-time visitor log with status chips (pending, entered, exited), search functionality, and filtering
+- **Gate Selection**: Dropdown to select entry gate for large societies with multiple entry points
+- **Visitor Type Selection**: Categorize visitors as Guest, Delivery, Service, or Other
 
 ### Resident Interface
-- **Home Dashboard**: Quick actions, recent notifications, and visitor alerts
-- **Visitors**: Pre-approve guests, view history, generate shareable QR codes
-- **Society Selection**: Choose or request access to residential societies
-- **Waiting Approval**: Screen for users awaiting residence verification
-- **Profile**: Manage family members, update contact info
+- **Society Selection Screen**: Browse available societies with search and filter capabilities
+- **Flat Selection Form**: Hierarchical selection of building number → wing → flat number
+- **Waiting Approval Screen**: Display verification request status with rejection reasons and resubmission option
+- **Home Dashboard**: Quick actions, recent notifications, and society updates
+- **Profile Management**: Update contact information, preferences, and family member details
 
 ### Admin Dashboard
-- **Overview**: Real-time analytics on occupancy, visitor traffic, revenue
-- **Security Management**: Add/remove guards, assign roles, view patrol logs
-- **User Management**: Manage residents, vendors, and staff accounts
-- **Residence Verifications**: Review and approve/reject resident verification requests
-- **Inventory Management**: Track consumables and durable items with transaction history
-- **Financial Reports**: Track collections, pending dues, expense reports
-- **Society Settings**: Configure buildings, flats, amenities, rules
-- **Audit Logs**: Complete history of critical system actions
-- **Role Toggle**: Switch between admin and owner modes (for eligible users)
+- **Security Guards Tab**: Manage security personnel assignments and credentials
+- **Verifications Tab**: Review residence verification requests with approve/reject actions and reason input
+  - Filter by status: pending, approved, rejected, all
+  - View user-submitted details and documents
+  - Assign society and flat upon approval
+  - Provide detailed rejection feedback
+- **Residents Tab**: Overview and management of society residents
+- **Inventory Tab**: Complete inventory management system
+  - Add/edit/delete inventory items with categories and types
+  - Record transactions with quantity changes and evidence photos
+  - View transaction history with search and filter
+  - Set minimum quantity alerts for consumables
+  - Track item location and status
+- **Society Overview Tab**: Dashboard with society statistics, occupancy metrics, and quick insights
+- **Navigation Rail**: Role toggle button for admin/owner users with visual role indicator
 
 ## ☁️ Cloud Functions
 
