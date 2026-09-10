@@ -26,7 +26,7 @@ class _HelperHomeScreenState extends ConsumerState<HelperHomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_currentIndex == 0 ? 'Assigned Work Queue' : 'Society Inventory'),
+        title: Text(_currentIndex == 0 ? 'Assigned Job Queue' : 'Society Inventory Management'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -46,9 +46,9 @@ class _HelperHomeScreenState extends ConsumerState<HelperHomeScreen> {
         onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.handyman_outlined),
-            selectedIcon: Icon(Icons.handyman),
-            label: 'Service Requests',
+            icon: Icon(Icons.assignment_outlined),
+            selectedIcon: Icon(Icons.assignment),
+            label: 'Job List',
           ),
           NavigationDestination(
             icon: Icon(Icons.inventory_2_outlined),
@@ -87,7 +87,7 @@ class _HelperRequestsList extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
-                    value: statuses.contains(selectedStatus) ? selectedStatus : 'In Progress',
+                    initialValue: statuses.contains(selectedStatus) ? selectedStatus : 'In Progress',
                     decoration: const InputDecoration(
                       labelText: 'Status',
                       prefixIcon: Icon(Icons.star_outline),
@@ -205,7 +205,8 @@ class _HelperRequestsList extends ConsumerWidget {
             final category = data['category'] ?? 'General';
             final title = data['title'] ?? 'Service Request';
             final description = data['description'] ?? '';
-            final flatNumber = data['flatNumber'] ?? 'Unknown Flat';
+            final wing = data['wing'] ?? '';
+            final flatNumber = data['flatNumber'] ?? data['roomNumber'] ?? 'Unknown Flat';
             final residentName = data['residentName'] ?? 'Resident';
             final status = data['status'] ?? 'Open';
             final workLogs = (data['workLogs'] as List<dynamic>?) ?? [];
@@ -228,10 +229,10 @@ class _HelperRequestsList extends ConsumerWidget {
                   ),
                 ),
                 title: Text('$category: $title', style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('Flat: $flatNumber ($residentName)\nStatus: $status'),
+                subtitle: Text('Location: ${wing.isNotEmpty ? "Wing $wing, " : ""}Flat $flatNumber ($residentName)\nStatus: $status'),
                 trailing: ElevatedButton(
                   onPressed: () => _showUpdateStatusDialog(context, ref, docId, status),
-                  child: const Text('Update'),
+                  child: const Text('Update Status'),
                 ),
                 children: [
                   Padding(
@@ -292,7 +293,8 @@ class _HelperRequestsList extends ConsumerWidget {
 class _HelperInventoryView extends ConsumerWidget {
   const _HelperInventoryView();
 
-  void _showMarkInventoryDialog(BuildContext context, WidgetRef ref, String itemId, String itemName, int currentQty, bool isUsing) {
+  void _showModifyInventoryDialog(
+      BuildContext context, WidgetRef ref, String docId, String itemName, int currentQty, bool isDelete) {
     final qtyController = TextEditingController(text: '1');
     final reasonController = TextEditingController();
     bool isLoading = false;
@@ -302,12 +304,12 @@ class _HelperInventoryView extends ConsumerWidget {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: Text(isUsing ? 'Mark Item as Used' : 'Return / Mark as Unused'),
+            title: Text(isDelete ? 'Remove / Delete Item Stock' : 'Restore / Add Item Stock'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Item: $itemName (Available: $currentQty)'),
+                  Text('Item: $itemName (Current Stock: $currentQty)'),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: qtyController,
@@ -321,8 +323,8 @@ class _HelperInventoryView extends ConsumerWidget {
                   TextFormField(
                     controller: reasonController,
                     decoration: const InputDecoration(
-                      labelText: 'Reason / Flat / Service Request',
-                      hintText: 'e.g. Used for Flat 204 plumbing repair',
+                      labelText: 'Reason / Flat / Job Details',
+                      hintText: 'e.g. Used for Wing A Flat 302 repair',
                     ),
                   ),
                 ],
@@ -338,9 +340,9 @@ class _HelperInventoryView extends ConsumerWidget {
                     ? null
                     : () async {
                         final changeQty = int.tryParse(qtyController.text) ?? 1;
-                        if (isUsing && changeQty > currentQty) {
+                        if (isDelete && changeQty > currentQty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Cannot use more than available quantity')),
+                            const SnackBar(content: Text('Cannot delete more than current stock quantity')),
                           );
                           return;
                         }
@@ -351,13 +353,13 @@ class _HelperInventoryView extends ConsumerWidget {
                           final societyId = ref.read(societyIdProvider);
                           final batch = FirebaseFirestore.instance.batch();
 
-                          final newQty = isUsing ? (currentQty - changeQty) : (currentQty + changeQty);
+                          final newQty = isDelete ? (currentQty - changeQty) : (currentQty + changeQty);
 
                           final itemRef = FirebaseFirestore.instance
                               .collection(AppConstants.societiesCollection)
                               .doc(societyId)
-                              .collection('inventory_items')
-                              .doc(itemId);
+                              .collection('inventory')
+                              .doc(docId);
 
                           batch.update(itemRef, {
                             'quantity': newQty,
@@ -372,13 +374,13 @@ class _HelperInventoryView extends ConsumerWidget {
 
                           batch.set(txRef, {
                             'id': txRef.id,
-                            'itemId': itemId,
+                            'itemId': docId,
                             'itemName': itemName,
-                            'quantityChange': isUsing ? -changeQty : changeQty,
+                            'quantityChange': isDelete ? -changeQty : changeQty,
                             'performedBy': user?.displayName ?? user?.email ?? 'Helper',
                             'performedById': user?.uid,
                             'reason': reasonController.text.trim(),
-                            'type': isUsing ? 'usage' : 'return',
+                            'type': isDelete ? 'delete_stock' : 'restore_stock',
                             'timestamp': FieldValue.serverTimestamp(),
                           });
 
@@ -387,13 +389,13 @@ class _HelperInventoryView extends ConsumerWidget {
                           if (context.mounted) {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Inventory updated successfully!'), backgroundColor: Colors.green),
+                              const SnackBar(content: Text('Inventory stock updated!'), backgroundColor: Colors.green),
                             );
                           }
                         } catch (e) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error updating inventory: $e'), backgroundColor: Colors.red),
+                              SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
                             );
                           }
                         } finally {
@@ -402,7 +404,7 @@ class _HelperInventoryView extends ConsumerWidget {
                       },
                 child: isLoading
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text(isUsing ? 'Mark as Used' : 'Mark as Unused'),
+                    : Text(isDelete ? 'Delete / Remove Stock' : 'Restore Stock'),
               ),
             ],
           );
@@ -419,7 +421,7 @@ class _HelperInventoryView extends ConsumerWidget {
       stream: FirebaseFirestore.instance
           .collection(AppConstants.societiesCollection)
           .doc(societyId)
-          .collection('inventory_items')
+          .collection('inventory')
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
@@ -431,7 +433,7 @@ class _HelperInventoryView extends ConsumerWidget {
 
         if (items.isEmpty) {
           return const Center(
-            child: Text('No inventory items found.'),
+            child: Text('No inventory items found in society stock.'),
           );
         }
 
@@ -464,16 +466,18 @@ class _HelperInventoryView extends ConsumerWidget {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    OutlinedButton(
-                      onPressed: () => _showMarkInventoryDialog(context, ref, itemId, name, quantity, true),
+                    OutlinedButton.icon(
+                      onPressed: () => _showModifyInventoryDialog(context, ref, itemId, name, quantity, true),
                       style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                      child: const Text('Use'),
+                      icon: const Icon(Icons.delete_outline, size: 16),
+                      label: const Text('Delete'),
                     ),
                     const SizedBox(width: 8),
-                    OutlinedButton(
-                      onPressed: () => _showMarkInventoryDialog(context, ref, itemId, name, quantity, false),
+                    OutlinedButton.icon(
+                      onPressed: () => _showModifyInventoryDialog(context, ref, itemId, name, quantity, false),
                       style: OutlinedButton.styleFrom(foregroundColor: Colors.green),
-                      child: const Text('Return'),
+                      icon: const Icon(Icons.restore, size: 16),
+                      label: const Text('Restore'),
                     ),
                   ],
                 ),

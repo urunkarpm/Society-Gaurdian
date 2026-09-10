@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 
 class ResidentHomeScreen extends ConsumerStatefulWidget {
@@ -15,7 +16,457 @@ class ResidentHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _ResidentHomeScreenState extends ConsumerState<ResidentHomeScreen> {
-  void _showNewRequestDialog(BuildContext context) {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final screens = [
+      const _ResidentVisitorsHomeTab(),
+      const _ResidentVisitorHistoryTab(),
+      const _ResidentServiceRequestsTab(),
+      const _ResidentNoticeBoardTab(),
+      const _ResidentSettingsTab(),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          _currentIndex == 0
+              ? 'Member Dashboard'
+              : (_currentIndex == 1
+                  ? 'Visitor History'
+                  : (_currentIndex == 2
+                      ? 'Service Requests'
+                      : (_currentIndex == 3 ? 'Community Notice Board' : 'Settings'))),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) context.go('/login');
+            },
+          ),
+        ],
+      ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: screens,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.door_sliding_outlined),
+            selectedIcon: Icon(Icons.door_sliding),
+            label: 'Visitors',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.history_outlined),
+            selectedIcon: Icon(Icons.history),
+            label: 'History',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.handyman_outlined),
+            selectedIcon: Icon(Icons.handyman),
+            label: 'Services',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.campaign_outlined),
+            selectedIcon: Icon(Icons.campaign),
+            label: 'Notices',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// TAB 1: Visitors Home & Pre-Approval
+class _ResidentVisitorsHomeTab extends ConsumerWidget {
+  const _ResidentVisitorsHomeTab();
+
+  void _showPreApproveDialog(BuildContext context, WidgetRef ref) {
+    final formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController();
+    final phoneController = TextEditingController();
+    final vehicleController = TextEditingController();
+    String visitorType = 'guest';
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Pre-approve Visitor'),
+            content: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: visitorType,
+                      decoration: const InputDecoration(
+                        labelText: 'Visitor Type',
+                        prefixIcon: Icon(Icons.category),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'guest', child: Text('Guest / Friend')),
+                        DropdownMenuItem(value: 'delivery', child: Text('Delivery Agent')),
+                        DropdownMenuItem(value: 'cab', child: Text('Cab Driver')),
+                        DropdownMenuItem(value: 'service', child: Text('Service Personnel')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => visitorType = val);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Visitor / Company Name',
+                        hintText: 'e.g. John Doe or Amazon',
+                        prefixIcon: Icon(Icons.person),
+                      ),
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Name required' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: phoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number (Optional)',
+                        prefixIcon: Icon(Icons.phone),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: vehicleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Vehicle Number (Optional)',
+                        prefixIcon: Icon(Icons.directions_car),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isLoading ? null : () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        if (!formKey.currentState!.validate()) return;
+                        setDialogState(() => isLoading = true);
+
+                        try {
+                          final user = FirebaseAuth.instance.currentUser;
+                          final currentUserEntity = ref.read(currentUserProvider);
+                          final societyId = ref.read(societyIdProvider);
+
+                          final passCode = (100000 + (DateTime.now().millisecondsSinceEpoch % 900000)).toString();
+
+                          final docRef = FirebaseFirestore.instance
+                              .collection(AppConstants.societiesCollection)
+                              .doc(societyId)
+                              .collection(AppConstants.visitorsCollection)
+                              .doc();
+
+                          await docRef.set({
+                            'id': docRef.id,
+                            'societyId': societyId,
+                            'visitorName': nameController.text.trim(),
+                            'visitorPhone': phoneController.text.trim(),
+                            'vehicleNumber': vehicleController.text.trim(),
+                            'hostFlatNumber': currentUserEntity?.flatId ?? 'Unassigned',
+                            'hostUserId': user?.uid,
+                            'hostName': user?.displayName ?? user?.email ?? 'Resident',
+                            'type': visitorType,
+                            'status': 'preApproved',
+                            'passCode': passCode,
+                            'purpose': 'Pre-approved Guest Entry',
+                            'createdAt': FieldValue.serverTimestamp(),
+                          });
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Pre-approval Created!'),
+                                content: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text('Share this Passcode with your visitor:'),
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.blue.shade300),
+                                      ),
+                                      child: Text(
+                                        passCode,
+                                        style: const TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 4,
+                                          color: Colors.blue,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx),
+                                    child: const Text('Close'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                            );
+                          }
+                        } finally {
+                          if (context.mounted) setDialogState(() => isLoading = false);
+                        }
+                      },
+                child: isLoading
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Create Pass'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final societyId = ref.watch(societyIdProvider);
+    final user = FirebaseAuth.instance.currentUser;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Pre-approve Banner Card
+          Card(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Expecting a Visitor?',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Pre-approve guests, delivery drivers, or service agents for fast gate entry.',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => _showPreApproveDialog(context, ref),
+                    icon: const Icon(Icons.add_moderator),
+                    label: const Text('Pre-approve'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          Text(
+            'Current & Expected Visitors',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection(AppConstants.societiesCollection)
+                .doc(societyId)
+                .collection(AppConstants.visitorsCollection)
+                .where('hostUserId', isEqualTo: user?.uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+              final activeDocs = docs.where((doc) {
+                final st = (doc.data() as Map<String, dynamic>)['status'] ?? '';
+                return st == 'pending' || st == 'preApproved' || st == 'checkedIn';
+              }).toList();
+
+              if (activeDocs.isEmpty) {
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        Icon(Icons.no_accounts_outlined, size: 48, color: Colors.grey.shade400),
+                        const SizedBox(height: 12),
+                        const Text('No active visitors at your gate right now.'),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: activeDocs.length,
+                itemBuilder: (context, index) {
+                  final doc = activeDocs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final name = data['visitorName'] ?? 'Visitor';
+                  final type = data['type'] ?? 'Guest';
+                  final status = data['status'] ?? 'pending';
+                  final passCode = data['passCode'];
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: status == 'checkedIn' ? Colors.green.shade100 : Colors.blue.shade100,
+                        child: Icon(
+                          status == 'checkedIn' ? Icons.check_circle : Icons.person_pin,
+                          color: status == 'checkedIn' ? Colors.green : Colors.blue,
+                        ),
+                      ),
+                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text('Type: $type • Status: ${status.toUpperCase()}'),
+                      trailing: passCode != null
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text('Pass: $passCode', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                            )
+                          : null,
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// TAB 2: Visitor History
+class _ResidentVisitorHistoryTab extends ConsumerWidget {
+  const _ResidentVisitorHistoryTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final societyId = ref.watch(societyIdProvider);
+    final user = FirebaseAuth.instance.currentUser;
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection(AppConstants.societiesCollection)
+          .doc(societyId)
+          .collection(AppConstants.visitorsCollection)
+          .where('hostUserId', isEqualTo: user?.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return const Center(child: Text('No visitor history recorded.'));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            final name = data['visitorName'] ?? 'Visitor';
+            final phone = data['visitorPhone'] ?? '';
+            final status = data['status'] ?? 'pending';
+            final purpose = data['purpose'] ?? 'General';
+            final createdAt = data['createdAt'] as Timestamp?;
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                  child: const Icon(Icons.person, color: AppTheme.primaryColor),
+                ),
+                title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text('Purpose: $purpose\nPhone: ${phone.isEmpty ? "N/A" : phone}'),
+                trailing: Chip(
+                  label: Text(status.toUpperCase(), style: const TextStyle(fontSize: 10, color: Colors.white)),
+                  backgroundColor: status == 'checkedIn'
+                      ? Colors.green
+                      : (status == 'checkedOut' ? Colors.grey : Colors.blue),
+                ),
+                isThreeLine: true,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// TAB 3: Service Requests
+class _ResidentServiceRequestsTab extends ConsumerWidget {
+  const _ResidentServiceRequestsTab();
+
+  void _showNewRequestDialog(BuildContext context, WidgetRef ref) {
     final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController();
     final descController = TextEditingController();
@@ -160,142 +611,273 @@ class _ResidentHomeScreenState extends ConsumerState<ResidentHomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final societyId = ref.watch(societyIdProvider);
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Resident Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              if (context.mounted) context.go('/login');
-            },
-            tooltip: 'Logout',
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showNewRequestDialog(context),
+        onPressed: () => _showNewRequestDialog(context, ref),
         icon: const Icon(Icons.add),
-        label: const Text('Raise Service Request'),
+        label: const Text('Raise Request'),
       ),
-      body: Consumer(
-        builder: (context, ref, child) {
-          final societyId = ref.watch(societyIdProvider);
-          final user = FirebaseAuth.instance.currentUser;
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection(AppConstants.societiesCollection)
+            .doc(societyId)
+            .collection('service_requests')
+            .where('residentId', isEqualTo: user?.uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          return StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection(AppConstants.societiesCollection)
-                .doc(societyId)
-                .collection('service_requests')
-                .where('residentId', isEqualTo: user?.uid)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+          final docs = snapshot.data?.docs ?? [];
 
-              final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.handyman_outlined, size: 64, color: Colors.grey.shade400),
+                  const SizedBox(height: 16),
+                  const Text('No service requests raised yet.'),
+                ],
+              ),
+            );
+          }
 
-              if (docs.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.handyman_outlined, size: 64, color: Colors.grey.shade400),
-                      const SizedBox(height: 16),
-                      const Text('No service requests raised yet.'),
-                      const SizedBox(height: 8),
-                      const Text('Tap "Raise Service Request" below to request help.'),
-                    ],
-                  ),
-                );
-              }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+              final category = data['category'] ?? 'General';
+              final title = data['title'] ?? 'Request';
+              final status = data['status'] ?? 'Open';
+              final urgency = data['urgency'] ?? 'Normal';
+              final workLogs = (data['workLogs'] as List<dynamic>?) ?? [];
 
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: docs.length,
-                itemBuilder: (context, index) {
-                  final doc = docs[index];
-                  final data = doc.data() as Map<String, dynamic>;
-                  final category = data['category'] ?? 'General';
-                  final title = data['title'] ?? 'Request';
-                  final status = data['status'] ?? 'Open';
-                  final urgency = data['urgency'] ?? 'Normal';
-                  final workLogs = (data['workLogs'] as List<dynamic>?) ?? [];
+              Color statusColor = Colors.blue;
+              if (status == 'Completed') statusColor = Colors.green;
+              if (status == 'Waiting for Part') statusColor = Colors.orange;
+              if (status == 'In Progress') statusColor = Colors.purple;
 
-                  Color statusColor = Colors.blue;
-                  if (status == 'Completed') statusColor = Colors.green;
-                  if (status == 'Waiting for Part') statusColor = Colors.orange;
-                  if (status == 'In Progress') statusColor = Colors.purple;
-
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ExpansionTile(
-                      leading: CircleAvatar(
-                        backgroundColor: statusColor.withOpacity(0.15),
-                        child: Icon(
-                          category == 'Plumbing'
-                              ? Icons.plumbing
-                              : (category == 'Electrical' ? Icons.electrical_services : Icons.build),
-                          color: statusColor,
-                        ),
-                      ),
-                      title: Text('$category: $title', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('Urgency: $urgency • Status: $status'),
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Real-time Updates & Logs:', style: TextStyle(fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 8),
-                              ...workLogs.map((log) {
-                                final lMap = log as Map<String, dynamic>;
-                                final lStatus = lMap['status'] ?? '';
-                                final lNotes = lMap['notes'] ?? '';
-                                final lBy = lMap['updatedBy'] ?? 'Staff';
-
-                                return Container(
-                                  margin: const EdgeInsets.only(top: 6),
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        lStatus == 'Completed'
-                                            ? Icons.check_circle
-                                            : Icons.info_outline,
-                                        size: 16,
-                                        color: lStatus == 'Completed' ? Colors.green : Colors.blue,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text('[$lStatus] $lNotes ($lBy)'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                            ],
-                          ),
-                        ),
-                      ],
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ExpansionTile(
+                  leading: CircleAvatar(
+                    backgroundColor: statusColor.withOpacity(0.15),
+                    child: Icon(
+                      category == 'Plumbing'
+                          ? Icons.plumbing
+                          : (category == 'Electrical' ? Icons.electrical_services : Icons.build),
+                      color: statusColor,
                     ),
-                  );
-                },
+                  ),
+                  title: Text('$category: $title', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('Urgency: $urgency • Status: $status'),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Real-time Updates & Logs:', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          ...workLogs.map((log) {
+                            final lMap = log as Map<String, dynamic>;
+                            final lStatus = lMap['status'] ?? '';
+                            final lNotes = lMap['notes'] ?? '';
+                            final lBy = lMap['updatedBy'] ?? 'Staff';
+
+                            return Container(
+                              margin: const EdgeInsets.only(top: 6),
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    lStatus == 'Completed' ? Icons.check_circle : Icons.info_outline,
+                                    size: 16,
+                                    color: lStatus == 'Completed' ? Colors.green : Colors.blue,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text('[$lStatus] $lNotes ($lBy)')),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           );
         },
       ),
+    );
+  }
+}
+
+/// TAB 4: Community Notice Board
+class _ResidentNoticeBoardTab extends ConsumerWidget {
+  const _ResidentNoticeBoardTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final societyId = ref.watch(societyIdProvider);
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection(AppConstants.societiesCollection)
+          .doc(societyId)
+          .collection('notices')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.campaign_outlined, size: 64, color: Colors.grey.shade400),
+                const SizedBox(height: 16),
+                const Text('No community notices posted.'),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            final title = data['title'] ?? 'Notice';
+            final content = data['content'] ?? '';
+            final category = data['category'] ?? 'General';
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Chip(
+                          label: Text(category),
+                          backgroundColor: Colors.blue.shade50,
+                        ),
+                        const Icon(Icons.push_pin, size: 18, color: Colors.orange),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text(content, style: const TextStyle(fontSize: 14)),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// TAB 5: Settings & Profile
+class _ResidentSettingsTab extends ConsumerWidget {
+  const _ResidentSettingsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = FirebaseAuth.instance.currentUser;
+    final currentUserEntity = ref.watch(currentUserProvider);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: ListTile(
+            leading: CircleAvatar(
+              radius: 28,
+              backgroundColor: AppTheme.primaryColor,
+              child: Text(
+                (user?.displayName ?? user?.email ?? 'R')[0].toUpperCase(),
+                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+            ),
+            title: Text(
+              user?.displayName ?? 'Resident Member',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text('${user?.email ?? ''}\nFlat / Unit: ${currentUserEntity?.flatId ?? 'Assigned'}'),
+            isThreeLine: true,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.notifications_outlined),
+                title: const Text('Visitor Notifications'),
+                subtitle: const Text('Receive push alerts for arriving visitors'),
+                trailing: Switch(
+                  value: true,
+                  onChanged: (val) {},
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.lock_outline),
+                title: const Text('Privacy & Security'),
+                onTap: () {},
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.help_outline),
+                title: const Text('Help & Support'),
+                onTap: () {},
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        ElevatedButton.icon(
+          onPressed: () async {
+            await FirebaseAuth.instance.signOut();
+            if (context.mounted) context.go('/login');
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+          icon: const Icon(Icons.logout),
+          label: const Text('Logout'),
+        ),
+      ],
     );
   }
 }
