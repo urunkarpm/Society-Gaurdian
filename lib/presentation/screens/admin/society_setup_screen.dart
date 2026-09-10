@@ -25,6 +25,7 @@ class _SocietySetupScreenState extends State<SocietySetupScreen> {
   final _wingsPerBuildingController = TextEditingController(text: 'A,B');
   final _flatsPerFloorController = TextEditingController(text: '4');
   final _totalFloorsController = TextEditingController(text: '5');
+  final _refugeFloorsController = TextEditingController(text: '');
 
   bool _isCreating = false;
   int _currentStep = 0;
@@ -38,6 +39,7 @@ class _SocietySetupScreenState extends State<SocietySetupScreen> {
     _wingsPerBuildingController.dispose();
     _flatsPerFloorController.dispose();
     _totalFloorsController.dispose();
+    _refugeFloorsController.dispose();
     super.dispose();
   }
 
@@ -82,6 +84,11 @@ class _SocietySetupScreenState extends State<SocietySetupScreen> {
 
       final int floors = int.tryParse(_totalFloorsController.text) ?? 1;
       final int flatsPerFloor = int.tryParse(_flatsPerFloorController.text) ?? 1;
+      final List<int> refugeFloors = _refugeFloorsController.text
+          .split(',')
+          .map((e) => int.tryParse(e.trim()))
+          .whereType<int>()
+          .toList();
 
       for (int b = 1; b <= buildingCount; b++) {
         final buildingNum = '$b';
@@ -89,6 +96,7 @@ class _SocietySetupScreenState extends State<SocietySetupScreen> {
 
         for (final wing in targetWings) {
           for (int floor = 1; floor <= floors; floor++) {
+            final isRefuge = refugeFloors.contains(floor);
             for (int f = 1; f <= flatsPerFloor; f++) {
               final flatNumber = '${floor * 100 + f}';
               final flatRef = FirebaseFirestore.instance.collection(AppConstants.flatsCollection).doc();
@@ -100,6 +108,7 @@ class _SocietySetupScreenState extends State<SocietySetupScreen> {
                 'wing': wing.isEmpty ? null : wing,
                 'flatNumber': flatNumber,
                 'floor': floor,
+                'isRefugeArea': isRefuge,
                 'isActive': true,
                 'createdAt': FieldValue.serverTimestamp(),
               });
@@ -302,6 +311,16 @@ class _SocietySetupScreenState extends State<SocietySetupScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _refugeFloorsController,
+                      decoration: const InputDecoration(
+                        labelText: 'Refuge Floors (Comma separated)',
+                        hintText: 'e.g. 5, 10 (Optional)',
+                        prefixIcon: Icon(Icons.security),
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ],
                 ),
