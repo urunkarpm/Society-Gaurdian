@@ -5,11 +5,15 @@
 
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { createApp } from './app';
 
 admin.initializeApp();
 
 const db = admin.firestore();
 const messaging = admin.messaging();
+
+// Express Tenant Router API Cloud Function
+export const api = functions.https.onRequest(createApp());
 
 // ==================== VISITOR FUNCTIONS ====================
 
@@ -47,7 +51,7 @@ export const onVisitorCreate = functions.firestore
       
       // Get resident FCM tokens
       const residentDocs = await Promise.all(
-        residentUids.map(uid => 
+        residentUids.map((uid: string) =>
           db.collection('users').doc(uid).get()
         )
       );
@@ -215,7 +219,7 @@ export const expirePendingVisitors = functions.pubsub
     try {
       const societiesSnapshot = await db.collection('societies').get();
       
-      const updatePromises: Promise<void>[] = [];
+      const updatePromises: Promise<unknown>[] = [];
       
       for (const societyDoc of societiesSnapshot.docs) {
         const expiredVisitors = await db
@@ -267,8 +271,6 @@ export const sendScheduledNotifications = functions.pubsub
         .where('startTime', '<', tomorrow)
         .where('status', '==', 'confirmed')
         .get();
-      
-      const notificationPromises: Promise<void>[] = [];
       
       for (const bookingDoc of bookingsSnapshot.docs) {
         const bookingData = bookingDoc.data();
@@ -424,6 +426,7 @@ export const assignUserRole = functions.https.onCall(
 );
 
 // Export all functions
+exports.api = api;
 exports.onVisitorCreate = onVisitorCreate;
 exports.expirePendingVisitors = expirePendingVisitors;
 exports.sendScheduledNotifications = sendScheduledNotifications;
