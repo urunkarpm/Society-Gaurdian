@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
-import 'dart:io';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
@@ -27,7 +24,6 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
   late TabController _tabController;
   MobileScannerController? _scannerController;
   bool _isScanning = false;
-  final ImagePicker _imagePicker = ImagePicker();
   
   // Form controllers
   final _visitorNameController = TextEditingController();
@@ -135,43 +131,6 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
     setState(() => _selectedType = VisitorType.guest);
   }
 
-  Future<void> _pickAndUploadPhoto(String visitorId) async {
-    try {
-      final XFile? photo = await _imagePicker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
-
-      if (photo != null) {
-        final file = File(photo.path);
-        final storageRef = FirebaseStorage.instance.ref();
-        final photoRef = storageRef.child(
-            '${AppConstants.visitorPhotosPath}/$visitorId/${DateTime.now().millisecondsSinceEpoch}.jpg');
-        
-        await photoRef.putFile(file);
-        final downloadUrl = await photoRef.getDownloadURL();
-
-        // Update visitor document with photo URL
-        await FirebaseFirestore.instance
-            .collection(AppConstants.societiesCollection)
-            .doc(ref.read(societyIdProvider))
-            .collection(AppConstants.visitorsCollection)
-            .doc(visitorId)
-            .update({
-          'visitorPhotoUrl': downloadUrl,
-          'photos': FieldValue.arrayUnion([downloadUrl]),
-        });
-
-        Logger.log('Photo uploaded successfully', tag: 'GuardHomeScreen');
-      }
-    } catch (e, stackTrace) {
-      Logger.error('Failed to upload photo', 
-          error: e, stackTrace: stackTrace, tag: 'GuardHomeScreen');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -180,6 +139,7 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
               if (mounted) {
@@ -208,14 +168,18 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
       floatingActionButton: _tabController.index == 1
           ? FloatingActionButton.extended(
               onPressed: _isScanning ? null : _registerVisitor,
+              tooltip: 'Register new visitor',
               icon: _isScanning
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
                     )
                   : const Icon(Icons.check),
-              label: const Text('Register'),
+              label: Text(_isScanning ? 'Registering...' : 'Register'),
             )
           : null,
     );
@@ -279,7 +243,7 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
               setState(() => _tabController.animateTo(1));
             },
             icon: const Icon(Icons.edit),
-            label: const Text('Manual Entry'),
+            label: const Text('Switch to Manual Entry'),
           ),
         ],
       ),
@@ -492,7 +456,11 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
                     Chip(
                       label: Text(
                         status.name.toUpperCase(),
-                        style: const TextStyle(fontSize: 10, color: Colors.white),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: _getStatusTextColor(status),
+                        ),
                       ),
                       backgroundColor: _getStatusColor(status),
                       padding: EdgeInsets.zero,
@@ -513,6 +481,15 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
         );
       },
     );
+  }
+
+  Color _getStatusTextColor(VisitorStatus status) {
+    switch (status) {
+      case VisitorStatus.pending:
+        return Colors.black87;
+      default:
+        return Colors.white;
+    }
   }
 
   Color _getStatusColor(VisitorStatus status) {
