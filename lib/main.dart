@@ -9,18 +9,28 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/routers/app_router.dart';
-import 'presentation/providers/auth_provider.dart';
-import 'presentation/providers/notification_provider.dart';
 import 'core/utils/logger.dart';
-import 'firebase_options.dart';
+
+import 'core/services/firebase_config_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
+  // Initialize Hive for local caching & settings
   try {
+    await Hive.initFlutter();
+    await Hive.openBox('sync_queue');
+    await Hive.openBox('cache');
+    await Hive.openBox('settings');
+  } catch (e) {
+    print('⚠️  Hive initialization warning: $e');
+  }
+
+  // Initialize Firebase with dynamic or default options
+  try {
+    final firebaseOptions = await FirebaseConfigService.getOptions();
     await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
+      options: firebaseOptions,
     );
     
     // Enable Firestore offline persistence
@@ -47,14 +57,6 @@ void main() async {
     print('   3. For Android, also add google-services.json to android/app/');
   }
   
-  // Initialize Hive for local caching
-  try {
-    await Hive.initFlutter();
-    await Hive.openBox('sync_queue');
-    await Hive.openBox('cache');
-  } catch (e) {
-    print('⚠️  Hive initialization warning: $e');
-  }
   
   // Initialize Crashlytics and Analytics in debug mode
   if (kDebugMode) {
@@ -73,7 +75,6 @@ class SocietyGuardianApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authStateProvider);
     final router = ref.watch(appRouterProvider);
     
     return MaterialApp.router(
