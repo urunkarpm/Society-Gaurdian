@@ -8,6 +8,7 @@ import '../../domain/entities/user_entity.dart';
 import '../providers/auth_provider.dart';
 import 'admin/admin_inventory_screen.dart';
 import 'admin/admin_verifications_screen.dart';
+import 'admin/admin_flat_members_screen.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -22,7 +23,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   final List<Widget> _screens = [
     const _SecurityGuardsManagement(),
     const AdminVerificationsScreen(), // Verifications tab
-    const _ResidentsManagement(),
+    const AdminFlatMembersScreen(), // Flat & Member Management tab
+    const _AdminServiceRequestsOverview(), // Service Requests Overview tab
     const _SocietyOverview(),
     const AdminInventoryScreen(),
   ];
@@ -112,7 +114,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               NavigationRailDestination(
                 icon: Icon(Icons.people_outlined),
                 selectedIcon: Icon(Icons.people),
-                label: Text('Residents'),
+                label: Text('Flat Members'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.handyman_outlined),
+                selectedIcon: Icon(Icons.handyman),
+                label: Text('Service Requests'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.dashboard_outlined),
@@ -629,23 +636,106 @@ class _SecurityGuardsManagementState extends ConsumerState<_SecurityGuardsManage
   }
 }
 
-// Placeholder screens for other tabs
-class _ResidentsManagement extends StatelessWidget {
-  const _ResidentsManagement();
+class _AdminServiceRequestsOverview extends ConsumerWidget {
+  const _AdminServiceRequestsOverview();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final societyId = ref.watch(societyIdProvider);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Residents Management')),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.people_outline, size: 64),
-            SizedBox(height: 16),
-            Text('Residents management coming soon'),
-          ],
-        ),
+      appBar: AppBar(
+        title: const Text('Service Requests Overview'),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('societies')
+            .doc(societyId)
+            .collection('service_requests')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+
+          if (docs.isEmpty) {
+            return const Center(
+              child: Text('No service requests reported in society.'),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+              final category = data['category'] ?? 'General';
+              final title = data['title'] ?? 'Request';
+              final status = data['status'] ?? 'Open';
+              final flatNumber = data['flatNumber'] ?? 'Unknown';
+              final residentName = data['residentName'] ?? 'Resident';
+              final urgency = data['urgency'] ?? 'Normal';
+              final workLogs = (data['workLogs'] as List<dynamic>?) ?? [];
+
+              Color statusColor = Colors.blue;
+              if (status == 'Completed') statusColor = Colors.green;
+              if (status == 'Waiting for Part') statusColor = Colors.orange;
+              if (status == 'In Progress') statusColor = Colors.purple;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ExpansionTile(
+                  leading: CircleAvatar(
+                    backgroundColor: statusColor.withOpacity(0.15),
+                    child: Icon(
+                      category == 'Plumbing'
+                          ? Icons.plumbing
+                          : (category == 'Electrical' ? Icons.electrical_services : Icons.build),
+                      color: statusColor,
+                    ),
+                  ),
+                  title: Text('$category: $title', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('Flat $flatNumber ($residentName) • Status: $status • Urgency: $urgency'),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Request History & Logs:', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          if (workLogs.isEmpty)
+                            const Text('No updates logged.')
+                          else
+                            ...workLogs.map((log) {
+                              final lMap = log as Map<String, dynamic>;
+                              final lStatus = lMap['status'] ?? '';
+                              final lNotes = lMap['notes'] ?? '';
+                              final lBy = lMap['updatedBy'] ?? 'Staff';
+
+                              return Container(
+                                margin: const EdgeInsets.only(top: 6),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text('[$lStatus] $lNotes (Updated by: $lBy)'),
+                              );
+                            }).toList(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

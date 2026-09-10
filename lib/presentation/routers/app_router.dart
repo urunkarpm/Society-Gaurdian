@@ -14,6 +14,7 @@ import '../screens/resident/waiting_approval_screen.dart';
 import '../screens/guard/guard_home_screen.dart';
 import '../screens/admin_dashboard_screen.dart';
 import '../screens/admin/admin_verifications_screen.dart';
+import '../screens/helper/helper_home_screen.dart';
 
 /// App router provider
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -64,7 +65,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             case UserRole.admin:
               return '/admin/dashboard';
             case UserRole.vendor:
-              return '/resident/home';
+              return '/helper/home';
             case UserRole.owner:
               return '/admin/dashboard';
             case null:
@@ -180,6 +181,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ResidentHomeScreen(),
       ),
       
+      // Helper / Vendor routes
+      GoRoute(
+        path: '/helper/home',
+        builder: (context, state) => const HelperHomeScreen(),
+      ),
+
       // Deep link routes
       GoRoute(
         path: '/visitor/:visitorId',
