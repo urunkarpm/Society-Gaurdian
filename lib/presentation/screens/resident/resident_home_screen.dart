@@ -22,6 +22,7 @@ class _ResidentHomeScreenState extends ConsumerState<ResidentHomeScreen> {
   Widget build(BuildContext context) {
     final screens = [
       const _ResidentVisitorsHomeTab(),
+      const _ResidentParkingTab(),
       const _ResidentVisitorHistoryTab(),
       const _ResidentServiceRequestsTab(),
       const _ResidentNoticeBoardTab(),
@@ -34,10 +35,12 @@ class _ResidentHomeScreenState extends ConsumerState<ResidentHomeScreen> {
           _currentIndex == 0
               ? 'Member Dashboard'
               : (_currentIndex == 1
-                  ? 'Visitor History'
+                  ? 'My & Visitor Parking'
                   : (_currentIndex == 2
-                      ? 'Service Requests'
-                      : (_currentIndex == 3 ? 'Community Notice Board' : 'Settings'))),
+                      ? 'Visitor History'
+                      : (_currentIndex == 3
+                          ? 'Service Requests'
+                          : (_currentIndex == 4 ? 'Community Notice Board' : 'Settings')))),
         ),
         actions: [
           IconButton(
@@ -62,6 +65,11 @@ class _ResidentHomeScreenState extends ConsumerState<ResidentHomeScreen> {
             icon: Icon(Icons.door_sliding_outlined),
             selectedIcon: Icon(Icons.door_sliding),
             label: 'Visitors',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.directions_car_outlined),
+            selectedIcon: Icon(Icons.directions_car),
+            label: 'Parking',
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),
@@ -114,7 +122,7 @@ class _ResidentVisitorsHomeTab extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String>(
-                      value: visitorType,
+                      initialValue: visitorType,
                       decoration: const InputDecoration(
                         labelText: 'Visitor Type',
                         prefixIcon: Icon(Icons.category),
@@ -397,7 +405,362 @@ class _ResidentVisitorsHomeTab extends ConsumerWidget {
   }
 }
 
-/// TAB 2: Visitor History
+/// TAB 2: Resident Parking & Community Visitor Parking Visibility List
+class _ResidentParkingTab extends ConsumerStatefulWidget {
+  const _ResidentParkingTab();
+
+  @override
+  ConsumerState<_ResidentParkingTab> createState() => _ResidentParkingTabState();
+}
+
+class _ResidentParkingTabState extends ConsumerState<_ResidentParkingTab> {
+  void _showAddVehicleDialog(BuildContext context, String flatNumber) {
+    final formKey = GlobalKey<FormState>();
+    final vehicleNumberController = TextEditingController();
+    final ownerNameController = TextEditingController(
+      text: FirebaseAuth.instance.currentUser?.displayName ?? 'Resident Owner',
+    );
+    String vehicleType = '4 Wheeler';
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Register Flat Vehicle'),
+            content: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: vehicleNumberController,
+                      decoration: const InputDecoration(
+                        labelText: 'Vehicle Number',
+                        hintText: 'e.g. MH 01 XX 1234',
+                        prefixIcon: Icon(Icons.directions_car),
+                      ),
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Vehicle number required' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: vehicleType,
+                      decoration: const InputDecoration(
+                        labelText: 'Vehicle Type',
+                        prefixIcon: Icon(Icons.category),
+                      ),
+                      items: ['4 Wheeler', '2 Wheeler', 'EV 4 Wheeler', 'EV 2 Wheeler']
+                          .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => vehicleType = val);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: ownerNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Owner Name',
+                        prefixIcon: Icon(Icons.person),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isLoading ? null : () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        if (!formKey.currentState!.validate()) return;
+                        setDialogState(() => isLoading = true);
+
+                        try {
+                          final societyId = ref.read(societyIdProvider);
+                          final docRef = FirebaseFirestore.instance
+                              .collection(AppConstants.societiesCollection)
+                              .doc(societyId)
+                              .collection('vehicles')
+                              .doc();
+
+                          await docRef.set({
+                            'id': docRef.id,
+                            'societyId': societyId,
+                            'flatNumber': flatNumber,
+                            'vehicleNumber': vehicleNumberController.text.trim(),
+                            'ownerName': ownerNameController.text.trim(),
+                            'vehicleType': vehicleType,
+                            'userId': FirebaseAuth.instance.currentUser?.uid,
+                            'createdAt': FieldValue.serverTimestamp(),
+                          });
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Vehicle registered successfully!'), backgroundColor: Colors.green),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                          }
+                        } finally {
+                          if (context.mounted) setDialogState(() => isLoading = false);
+                        }
+                      },
+                child: const Text('Register Vehicle'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final societyId = ref.watch(societyIdProvider);
+    final currentUserEntity = ref.watch(currentUserProvider);
+    final flatNumber = currentUserEntity?.flatId ?? 'B-1204';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Section 1: Resident Assigned Slot & Vehicles
+          Card(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.directions_car, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                          const SizedBox(width: 8),
+                          Text(
+                            'My Flat Parking & Vehicles',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                ),
+                          ),
+                        ],
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddVehicleDialog(context, flatNumber),
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Add Vehicle'),
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 4),
+
+                  // Assigned Resident Parking Slot Stream
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection(AppConstants.societiesCollection)
+                        .doc(societyId)
+                        .collection('parking_slots')
+                        .where('assignedFlatNumber', isEqualTo: flatNumber)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      final assignedSlots = snapshot.data?.docs ?? [];
+                      if (assignedSlots.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            'Flat $flatNumber • Slot: Unassigned (Contact Admin)',
+                            style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer),
+                          ),
+                        );
+                      }
+
+                      final slotNumbers = assignedSlots
+                          .map((d) => (d.data() as Map<String, dynamic>)['slotNumber'] ?? '')
+                          .join(', ');
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(
+                          'Flat $flatNumber • Assigned Parking: $slotNumbers',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Resident Registered Vehicles
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection(AppConstants.societiesCollection)
+                        .doc(societyId)
+                        .collection('vehicles')
+                        .where('flatNumber', isEqualTo: flatNumber)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      final vDocs = snapshot.data?.docs ?? [];
+                      if (vDocs.isEmpty) {
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text('🚗 No registered vehicles added for your flat yet.'),
+                        );
+                      }
+
+                      return Column(
+                        children: vDocs.map((doc) {
+                          final vData = doc.data() as Map<String, dynamic>;
+                          final vNum = vData['vehicleNumber'] ?? 'N/A';
+                          final vType = vData['vehicleType'] ?? '4 Wheeler';
+
+                          return Container(
+                            margin: const EdgeInsets.only(top: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                const Text('🚗', style: TextStyle(fontSize: 18)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '$vNum ($vType)',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Section 2: Community Visitor Parking Visibility List
+          Row(
+            children: [
+              const Icon(Icons.local_parking, color: Colors.blue),
+              const SizedBox(width: 8),
+              Text(
+                'Visitor Parking Directory',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const Text('Real-time visibility of active visitor vehicles and assigned spots in the society.'),
+          const SizedBox(height: 12),
+
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection(AppConstants.societiesCollection)
+                .doc(societyId)
+                .collection('parking_slots')
+                .where('type', isEqualTo: 'visitor')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+              final occupiedVisitorSlots = docs.where((doc) {
+                return (doc.data() as Map<String, dynamic>)['isOccupied'] == true;
+              }).toList();
+
+              if (occupiedVisitorSlots.isEmpty) {
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        Icon(Icons.local_parking_outlined, size: 48, color: Colors.grey.shade400),
+                        const SizedBox(height: 8),
+                        const Text('No visitor vehicles currently parked in society slots.'),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: occupiedVisitorSlots.length,
+                itemBuilder: (context, index) {
+                  final data = occupiedVisitorSlots[index].data() as Map<String, dynamic>;
+                  final slotNum = data['slotNumber'] ?? 'V-?';
+                  final vehicleNum = data['currentVehicleNumber'] ?? 'Vehicle N/A';
+                  final visitorName = data['currentVisitorName'] ?? 'Visitor';
+                  final flatNum = data['currentVisitorFlatNumber'] ?? '';
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.amber.shade100,
+                        child: Text(
+                          slotNum,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: Colors.amber.shade900,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        'Vehicle: $vehicleNum',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text('Visiting Flat: ${flatNum.isEmpty ? "N/A" : flatNum} • Guest: $visitorName'),
+                      trailing: Chip(
+                        label: Text('Spot: $slotNum', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 11)),
+                        backgroundColor: Colors.orange,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// TAB 3: Visitor History
 class _ResidentVisitorHistoryTab extends ConsumerWidget {
   const _ResidentVisitorHistoryTab();
 
@@ -435,13 +798,12 @@ class _ResidentVisitorHistoryTab extends ConsumerWidget {
             final phone = data['visitorPhone'] ?? '';
             final status = data['status'] ?? 'pending';
             final purpose = data['purpose'] ?? 'General';
-            final createdAt = data['createdAt'] as Timestamp?;
 
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                  backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
                   child: const Icon(Icons.person, color: AppTheme.primaryColor),
                 ),
                 title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -462,7 +824,7 @@ class _ResidentVisitorHistoryTab extends ConsumerWidget {
   }
 }
 
-/// TAB 3: Service Requests
+/// TAB 4: Service Requests
 class _ResidentServiceRequestsTab extends ConsumerWidget {
   const _ResidentServiceRequestsTab();
 
@@ -487,7 +849,7 @@ class _ResidentServiceRequestsTab extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String>(
-                      value: category,
+                      initialValue: category,
                       decoration: const InputDecoration(
                         labelText: 'Service Needed',
                         prefixIcon: Icon(Icons.build),
@@ -521,7 +883,7 @@ class _ResidentServiceRequestsTab extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: urgency,
+                      initialValue: urgency,
                       decoration: const InputDecoration(
                         labelText: 'Urgency',
                         prefixIcon: Icon(Icons.priority_high),
@@ -670,7 +1032,7 @@ class _ResidentServiceRequestsTab extends ConsumerWidget {
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ExpansionTile(
                   leading: CircleAvatar(
-                    backgroundColor: statusColor.withOpacity(0.15),
+                    backgroundColor: statusColor.withValues(alpha: 0.15),
                     child: Icon(
                       category == 'Plumbing'
                           ? Icons.plumbing
@@ -728,7 +1090,7 @@ class _ResidentServiceRequestsTab extends ConsumerWidget {
   }
 }
 
-/// TAB 4: Community Notice Board
+/// TAB 5: Community Notice Board
 class _ResidentNoticeBoardTab extends ConsumerWidget {
   const _ResidentNoticeBoardTab();
 
@@ -805,7 +1167,7 @@ class _ResidentNoticeBoardTab extends ConsumerWidget {
   }
 }
 
-/// TAB 5: Settings & Profile
+/// TAB 6: Settings & Profile
 class _ResidentSettingsTab extends ConsumerWidget {
   const _ResidentSettingsTab();
 

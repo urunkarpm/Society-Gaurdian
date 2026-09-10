@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import 'admin/admin_inventory_screen.dart';
 import 'admin/admin_verifications_screen.dart';
 import 'admin/admin_flat_members_screen.dart';
+import 'admin/admin_parking_screen.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -25,6 +26,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     const _AdminServiceRequestsScreen(), // Job List & Task Assignment
     const _AdminWorkerProfilesScreen(), // Worker Profiles
     const _AdminSocietyConfigScreen(), // Society Configuration (Wings, Floors, Rooms)
+    const AdminParkingScreen(), // Parking Setup & Allocation
     const AdminVerificationsScreen(), // Verifications
     const AdminFlatMembersScreen(), // Flat & Member Management
     const _AdminSettingsScreen(), // Settings
@@ -114,6 +116,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 icon: Icon(Icons.apartment_outlined),
                 selectedIcon: Icon(Icons.apartment),
                 label: Text('Society Config'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.local_parking_outlined),
+                selectedIcon: Icon(Icons.local_parking),
+                label: Text('Parking'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.verified_user_outlined),
