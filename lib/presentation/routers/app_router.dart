@@ -16,13 +16,12 @@ import '../../core/constants/app_constants.dart';
 
 /// App router provider
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authService = ref.watch(authServiceProviders);
+  final authStateAsync = ref.watch(authStateProvider);
   
   return GoRouter(
     initialLocation: '/',
     debugLogDiagnostics: true,
     redirect: (context, state) {
-      final isLoggedIn = authService.currentUser != null;
       final isLoggingIn = state.matchedLocation == '/login';
       final isSplash = state.matchedLocation == '/';
       final isSelectingResidence = state.matchedLocation == '/select-residence';
@@ -32,22 +31,46 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return null; // Allow splash to load
       }
       
+      // Check auth state
+      final authState = authStateAsync;
+      final isLoggedIn = authState.hasValue && authState.value != null;
+      
       if (!isLoggedIn && !isLoggingIn) {
         return '/login';
       }
       
-      if (isLoggedIn && (isSplash || isLoggingIn)) {
-        final user = authService.currentUser;
+      if (isLoggedIn) {
+        final user = authState.value;
         if (user != null) {
-          final role = UserRole.resident;
+          final role = user.role;
+          final verificationStatus = user.metadata?['verificationStatus'];
+          final hasSociety = user.societyId != null;
+          final hasFlat = user.flatId != null;
           
+          // Handle unverified residents (no role assigned yet or pending verification)
+          if ((role == UserRole.resident && verificationStatus == 'pending') || 
+              (role == UserRole.resident && !hasSociety)) {
+            if (!hasSociety && !isSelectingResidence) {
+              return '/select-residence';
+            }
+            if (hasSociety && verificationStatus == 'pending' && !isWaitingApproval) {
+              return '/waiting-approval';
+            }
+          }
+          
+          // Route based on role
           switch (role) {
             case UserRole.resident:
+              if (!hasFlat && !isSelectingResidence) {
+                return '/select-residence';
+              }
               return '/resident/home';
             case UserRole.security:
               return '/guard/home';
             case UserRole.admin:
               return '/admin/dashboard';
+            case UserRole.owner:
+              return '/owner/dashboard';
             case UserRole.vendor:
               return '/vendor/home';
           }

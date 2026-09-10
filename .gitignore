@@ -1,26 +1,34 @@
 ```
 # Dependencies
-.dart_tool/
-.build/
 .pub/
+.buildlog
+.flutter-plugins
+.flutter-plugin-dependencies
+.packages
 
-# Logs and temp files
-*.log
+# Generated plugin build files
+**/android/**/gradle-wrapper.properties
+
+# Coverage
+coverage/
+
+# Temporary files
 *.tmp
-*.swp
+*.temp
+*.log
 
 # Environment
 .env
 .env.local
 *.env.*
 
-# Editors
-.vscode/
+# IDE files
 .idea/
+.vscode/
 *.swp
 *.swo
 
-# Build outputs
-build/
-dist/
+# OS generated files
+.DS_Store
+Thumbs.db
 ```
