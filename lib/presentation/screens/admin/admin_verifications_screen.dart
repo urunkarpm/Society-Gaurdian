@@ -18,6 +18,57 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
   String _filterStatus = 'pending'; // pending, approved, rejected, all
   
   Future<void> _approveRequest(String requestId, String userId, String societyId, String flatId) async {
+    String selectedRole = 'resident';
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Approve Request & Assign Role'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Select the role to assign to this user:'),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRole,
+                  decoration: const InputDecoration(
+                    labelText: 'User Role',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.badge_outlined),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'resident', child: Text('Resident')),
+                    DropdownMenuItem(value: 'admin', child: Text('Admin (Full Access)')),
+                    DropdownMenuItem(value: 'security', child: Text('Security Guard')),
+                    DropdownMenuItem(value: 'owner', child: Text('Property Owner')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setDialogState(() => selectedRole = val);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, null),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, selectedRole),
+                style: FilledButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('Confirm & Approve'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (result == null) return;
+
     try {
       final adminUser = FirebaseAuth.instance.currentUser;
       if (adminUser == null) throw Exception('No admin logged in');
@@ -28,6 +79,7 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
           .doc(requestId)
           .update({
         'status': 'approved',
+        'assignedRole': result,
         'reviewedAt': FieldValue.serverTimestamp(),
         'reviewedBy': adminUser.email ?? adminUser.uid,
       });
@@ -37,7 +89,7 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
           .collection('users')
           .doc(userId)
           .update({
-        'role': 'resident',
+        'role': result,
         'societyId': societyId,
         'flatId': flatId,
         'verificationStatus': 'approved',
@@ -46,8 +98,8 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Request approved successfully!'),
+          SnackBar(
+            content: Text('Request approved successfully as ${result.toUpperCase()}!'),
             backgroundColor: Colors.green,
           ),
         );

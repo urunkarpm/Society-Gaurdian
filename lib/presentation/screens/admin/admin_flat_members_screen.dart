@@ -15,8 +15,80 @@ class AdminFlatMembersScreen extends ConsumerStatefulWidget {
 class _AdminFlatMembersScreenState extends ConsumerState<AdminFlatMembersScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  String? _selectedBuilding;
-  String? _selectedWing;
+
+  Future<void> _changeMemberRole(String userId, String currentName, String currentRole) async {
+    String selectedRole = currentRole;
+
+    final newRole = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Text('Change Role for $currentName'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Current Role: ${currentRole.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRole,
+                  decoration: const InputDecoration(
+                    labelText: 'Select New Role',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.admin_panel_settings_outlined),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'resident', child: Text('Resident')),
+                    DropdownMenuItem(value: 'admin', child: Text('Admin (Full Access)')),
+                    DropdownMenuItem(value: 'security', child: Text('Security Guard')),
+                    DropdownMenuItem(value: 'owner', child: Text('Property Owner')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setDialogState(() => selectedRole = val);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, null),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, selectedRole),
+                child: const Text('Update Role'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (newRole == null || newRole == currentRole) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        'role': newRole,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Updated $currentName role to ${newRole.toUpperCase()}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update role: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -367,6 +439,9 @@ class _AdminFlatMembersScreenState extends ConsumerState<AdminFlatMembersScreen>
                                   final mEmail = mData['email'] ?? '';
                                   final mType = mData['memberType'] ?? 'Resident';
 
+                                  final mUserId = mData['userId'] as String?;
+                                  final mRole = mData['role'] ?? 'resident';
+
                                   return ListTile(
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
                                     leading: const CircleAvatar(
@@ -374,11 +449,24 @@ class _AdminFlatMembersScreenState extends ConsumerState<AdminFlatMembersScreen>
                                       child: Icon(Icons.person, size: 18),
                                     ),
                                     title: Text(mName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                    subtitle: Text('$mType • $mPhone • $mEmail'),
-                                    trailing: IconButton(
-                                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                                      onPressed: () => _removeMember(m.id, mName, flatId),
+                                    subtitle: Text('$mType • Role: ${mRole.toString().toUpperCase()}\n$mPhone • $mEmail'),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (mUserId != null && mUserId.isNotEmpty)
+                                          IconButton(
+                                            icon: const Icon(Icons.manage_accounts, color: Colors.indigo, size: 20),
+                                            tooltip: 'Manage Role',
+                                            onPressed: () => _changeMemberRole(mUserId, mName, mRole.toString()),
+                                          ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                                          tooltip: 'Remove Member',
+                                          onPressed: () => _removeMember(m.id, mName, flatId),
+                                        ),
+                                      ],
                                     ),
+                                    isThreeLine: true,
                                   );
                                 }).toList(),
                             ],
