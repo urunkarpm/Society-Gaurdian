@@ -509,8 +509,8 @@ class _GuardHomeScreenState extends ConsumerState<GuardHomeScreen>
   }
 
   String _formatTime(dynamic timestamp) {
-    if (timestamp == null) return '';
-    final dateTime = (timestamp is Timestamp) ? timestamp.toDate() : DateTime.now();
+    if (timestamp is! Timestamp) return '';
+    final dateTime = timestamp.toDate();
     return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }
