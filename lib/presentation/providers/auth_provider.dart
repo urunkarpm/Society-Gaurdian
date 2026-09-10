@@ -203,8 +203,25 @@ class AuthService {
       // Sign in to Firebase with the Google credentials
       final userCredential = await _auth.signInWithCredential(credential);
       
-      // Update last login time
-      await _updateLastLogin(userCredential.user!.uid);
+      // Check if user profile exists, create if not
+      final userDoc = await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userCredential.user!.uid)
+          .get();
+      
+      if (!userDoc.exists) {
+        // Create new user profile with default resident role
+        await createUserProfile(
+          uid: userCredential.user!.uid,
+          email: userCredential.user!.email ?? '',
+          role: UserRole.resident,
+          phoneNumber: userCredential.user!.phoneNumber,
+          displayName: userCredential.user!.displayName,
+        );
+      } else {
+        // Update last login time for existing user
+        await _updateLastLogin(userCredential.user!.uid);
+      }
       
       Logger.auth('Google sign in successful', userId: userCredential.user!.uid);
       return userCredential;

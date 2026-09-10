@@ -22,11 +22,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _initializeApp() async {
+    // Wait for Firebase to be ready and check auth state
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
+    
+    // Use FirebaseAuth directly for initial check - router will handle role-based navigation
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      context.go('/resident/home');
+      // Don't hardcode route - let the router's redirect logic determine the correct page
+      // based on user role from Firestore
+      context.go('/'); // Go to root, router will redirect appropriately
     } else {
       context.go('/login');
     }
