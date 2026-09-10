@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'dart:io';
 
 import '../../../domain/entities/inventory_item_entity.dart';
 import '../../../core/theme/app_theme.dart';
@@ -22,7 +19,6 @@ class AdminInventoryScreen extends ConsumerStatefulWidget {
 class _AdminInventoryScreenState extends ConsumerState<AdminInventoryScreen> {
   String _selectedCategory = 'All';
   String _searchQuery = '';
-  final ImagePicker _imagePicker = ImagePicker();
 
   // Categories for filtering
   final List<String> _categories = [
