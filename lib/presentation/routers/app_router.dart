@@ -6,13 +6,14 @@ import '../../domain/entities/user_entity.dart';
 import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/splash_screen.dart';
+import '../screens/auth/firebase_config_screen.dart';
+import '../screens/admin/society_setup_screen.dart';
 import '../screens/resident/resident_home_screen.dart';
 import '../screens/resident/society_selection_screen.dart';
 import '../screens/resident/waiting_approval_screen.dart';
 import '../screens/guard/guard_home_screen.dart';
 import '../screens/admin_dashboard_screen.dart';
 import '../screens/admin/admin_verifications_screen.dart';
-import '../../core/constants/app_constants.dart';
 
 /// App router provider
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -25,11 +26,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = authService.currentUser != null;
       final isLoggingIn = state.matchedLocation == '/login';
       final isSplash = state.matchedLocation == '/';
-      final isSelectingResidence = state.matchedLocation == '/select-residence';
-      final isWaitingApproval = state.matchedLocation == '/waiting-approval';
+      final isFirebaseConfig = state.matchedLocation == '/firebase-config';
       
-      if (isSplash) {
-        return null; // Allow splash to load
+      if (isSplash || isFirebaseConfig) {
+        return null; // Allow splash or firebase config screen to load freely
       }
       
       if (!isLoggedIn && !isLoggingIn) {
@@ -39,8 +39,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (isLoggedIn && (isSplash || isLoggingIn)) {
         final user = authService.currentUser;
         if (user != null) {
-          // Wait for provider to be ready
           await Future.delayed(const Duration(milliseconds: 100));
+          final currentUser = ref.read(currentUserProvider);
+          final verificationStatus = currentUser?.metadata?['verificationStatus'];
+          final societyId = currentUser?.societyId;
+
+          // Redirect residents without verified residence
+          if (currentUser?.role == UserRole.resident) {
+            if (verificationStatus == 'pending') {
+              return '/waiting-approval';
+            }
+            if (societyId == null || societyId.isEmpty) {
+              return '/select-residence';
+            }
+          }
+
           final role = ref.read(userRoleProvider);
 
           switch (role) {
@@ -51,11 +64,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             case UserRole.admin:
               return '/admin/dashboard';
             case UserRole.vendor:
-              return '/vendor/home';
+              return '/resident/home';
             case UserRole.owner:
-              return '/owner/dashboard';
+              return '/admin/dashboard';
             case null:
-              return '/login';
+              return '/select-residence';
           }
         }
       }
@@ -67,6 +80,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/',
         builder: (context, state) => const SplashScreen(),
+      ),
+
+      // Dynamic Firebase Config route
+      GoRoute(
+        path: '/firebase-config',
+        builder: (context, state) => const FirebaseConfigScreen(),
+      ),
+
+      // Society Onboarding & Setup route
+      GoRoute(
+        path: '/setup-society',
+        builder: (context, state) => const SocietySetupScreen(),
       ),
       
       // Auth routes
@@ -145,48 +170,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AdminDashboardScreen(),
       ),
       
-      // Owner routes (for owners who can toggle to admin mode)
+      // Owner routes
       GoRoute(
         path: '/owner/dashboard',
-        builder: (context, state) => const AdminDashboardScreen(), // Owners use same dashboard
+        builder: (context, state) => const AdminDashboardScreen(),
       ),
       GoRoute(
         path: '/owner/visitors',
-        builder: (context, state) => const ResidentHomeScreen(), // Owners see visitor notifications
+        builder: (context, state) => const ResidentHomeScreen(),
       ),
       
       // Deep link routes
       GoRoute(
         path: '/visitor/:visitorId',
-        builder: (context, state) {
-          final visitorId = state.pathParameters['visitorId'];
-          // Return visitor detail screen
-          return const ResidentHomeScreen();
-        },
+        builder: (context, state) => const ResidentHomeScreen(),
       ),
       GoRoute(
         path: '/complaint/:complaintId',
-        builder: (context, state) {
-          final complaintId = state.pathParameters['complaintId'];
-          // Return complaint detail screen
-          return const ResidentHomeScreen();
-        },
+        builder: (context, state) => const ResidentHomeScreen(),
       ),
       GoRoute(
         path: '/booking/:bookingId',
-        builder: (context, state) {
-          final bookingId = state.pathParameters['bookingId'];
-          // Return booking detail screen
-          return const ResidentHomeScreen();
-        },
+        builder: (context, state) => const ResidentHomeScreen(),
       ),
       GoRoute(
         path: '/payment/:paymentId',
-        builder: (context, state) {
-          final paymentId = state.pathParameters['paymentId'];
-          // Return payment detail screen
-          return const ResidentHomeScreen();
-        },
+        builder: (context, state) => const ResidentHomeScreen(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
