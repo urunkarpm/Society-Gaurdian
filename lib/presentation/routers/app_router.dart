@@ -14,6 +14,7 @@ import '../screens/resident/waiting_approval_screen.dart';
 import '../screens/guard/guard_home_screen.dart';
 import '../screens/admin_dashboard_screen.dart';
 import '../screens/admin/admin_verifications_screen.dart';
+import '../screens/admin/admin_vendor_home_screen.dart';
 import '../screens/helper/helper_home_screen.dart';
 
 /// App router provider
@@ -169,6 +170,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/admin/reports',
         builder: (context, state) => const AdminDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/admin/vendors',
+        builder: (context, state) => const AdminVendorHomeScreen(),
       ),
       
       // Owner routes

@@ -10,6 +10,7 @@ import 'admin/admin_inventory_screen.dart';
 import 'admin/admin_verifications_screen.dart';
 import 'admin/admin_flat_members_screen.dart';
 import 'admin/admin_parking_screen.dart';
+import 'admin/admin_vendor_home_screen.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -23,6 +24,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   
   final List<Widget> _screens = [
     const AdminInventoryScreen(), // Inventory Management (Fire extinguishers, lights, custom)
+    const AdminVendorHomeScreen(), // Vendor Management (Directory, AMCs, Bills, Performance)
     const _AdminServiceRequestsScreen(), // Job List & Task Assignment
     const _AdminWorkerProfilesScreen(), // Worker Profiles
     const _AdminSocietyConfigScreen(), // Society Configuration (Wings, Floors, Rooms)
@@ -101,6 +103,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 icon: Icon(Icons.inventory_2_outlined),
                 selectedIcon: Icon(Icons.inventory_2),
                 label: Text('Inventory'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.store_outlined),
+                selectedIcon: Icon(Icons.store),
+                label: Text('Vendors'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.assignment_outlined),
